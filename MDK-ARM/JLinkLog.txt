@@ -1,0 +1,78 @@
+T6714 000:238.846   SEGGER J-Link V6.86 Log File
+T6714 000:239.752   DLL Compiled: Sep 24 2020 17:31:31
+T6714 000:239.767   Logging started @ 2025-04-27 01:56
+T6714 000:239.780 - 239.786ms
+T6714 000:240.138 JLINK_SetWarnOutHandler(...)
+T6714 000:240.406 - 0.276ms
+T6714 000:240.422 JLINK_OpenEx(...)
+T6714 000:245.045   Firmware: J-Link V9 compiled Dec  8 2023 20:16:22
+T6714 000:246.194   Decompressing FW timestamp took 730 us
+T6714 000:252.427   Hardware: V9.70
+T6714 000:252.467   S/N: 602717868
+T6714 000:252.485   OEM: SEGGER
+T6714 000:252.503   Feature(s): GDB, RDI, FlashBP, FlashDL, JFlash
+T6714 000:254.335   TELNET listener socket opened on port 19021
+T6714 000:254.783   WEBSRV Starting webserver
+T6714 000:255.635   WEBSRV Webserver running on local port 19080
+T6714 000:255.654 - 15.233ms returns "O.K."
+T6714 000:255.686 JLINK_GetEmuCaps()
+T6714 000:255.693 - 0.008ms returns 0xB9FF7BBF
+T6714 000:255.702 JLINK_TIF_GetAvailable(...)
+T6714 000:255.920 - 0.227ms
+T6714 000:255.941 JLINK_SetErrorOutHandler(...)
+T6714 000:255.946 - 0.007ms
+T6714 000:256.200 JLINK_ExecCommand("ProjectFile = "D:\project\pump_application_project\mm32\USART_DMA_Polling\MDK-ARM\JLinkSettings.ini"", ...). 
+T6714 000:284.160 - 27.967ms returns 0x00
+T6714 000:284.210 JLINK_ExecCommand("Device = MM32SPIN0230B3TV", ...). 
+T6714 000:284.439   Looking for J-Link GUI Server exe at: C:\Keil_v5\ARM\Segger\JLinkGUIServer.exe
+T6714 000:284.534   Looking for J-Link GUI Server exe at: D:\Program Files\SEGGER\JLink_V798a\JLinkGUIServer.exe
+T6714 000:284.560   Forking J-Link GUI Server: D:\Program Files\SEGGER\JLink_V798a\JLinkGUIServer.exe
+T6714 000:727.804   J-Link GUI Server info: "J-Link GUI server V7.98a "
+T6714 003:519.418 - 3235.228ms returns 0xFFFFFFFF
+T6714 003:519.480 JLINK_GetHardwareVersion()
+T6714 003:519.487 - 0.008ms returns 97000
+T6714 003:519.876 JLINK_GetDLLVersion()
+T6714 003:519.889 - 0.014ms returns 68600
+T6714 003:519.897 JLINK_GetOEMString(...)
+T6714 003:520.242 JLINK_GetFirmwareString(...)
+T6714 003:520.252 - 0.012ms
+T6714 003:520.260 JLINK_GetDLLVersion()
+T6714 003:520.264 - 0.006ms returns 68600
+T6714 003:520.268 JLINK_GetCompileDateTime()
+T6714 003:520.272 - 0.005ms
+T6714 003:520.278 JLINK_GetFirmwareString(...)
+T6714 003:520.282 - 0.005ms
+T6714 003:520.287 JLINK_GetHardwareVersion()
+T6714 003:520.290 - 0.005ms returns 97000
+T6714 003:520.295 JLINK_GetSN()
+T6714 003:520.299 - 0.005ms returns 602717868
+T6714 003:520.305 JLINK_GetOEMString(...)
+T6714 003:520.311 JLINK_TIF_Select(JLINKARM_TIF_JTAG)
+T6714 003:520.882 - 0.580ms returns 0x00
+T6714 003:520.898 JLINK_HasError()
+T6714 003:520.911 JLINK_SetSpeed(5000)
+T6714 003:520.989 - 0.086ms
+T6714 003:521.280 JLINK_HasError()
+T6714 003:521.289 JLINK_SetResetType(JLINKARM_RESET_TYPE_NORMAL)
+T6714 003:521.293 - 0.005ms returns JLINKARM_RESET_TYPE_NORMAL
+T6714 003:521.298 JLINK_Reset()
+T6714 003:521.443   
+  ***** Error: 
+T6714 003:521.450   No CPU core or target device has been selected. Please make sure at least the core J-Link shall connect to, is selected.
+T6714 003:521.456 - 0.159ms
+T6714 003:521.464 JLINK_GetIdData(pIdData)
+T6714 003:521.594   
+  ***** Error: 
+T6714 003:521.602   No CPU core or target device has been selected. Please make sure at least the core J-Link shall connect to, is selected.
+T6714 003:521.607 - 0.144ms
+T6714 003:521.614 JLINK_GetIdData(pIdData)
+T6714 003:521.766   
+  ***** Error: 
+T6714 003:521.776   No CPU core or target device has been selected. Please make sure at least the core J-Link shall connect to, is selected.
+T6714 003:521.781 - 0.169ms
+T6714 003:530.481 JLINK_GetFirmwareString(...)
+T6714 003:530.494 - 0.015ms
+T6714 014:561.135 JLINK_Close()
+T6714 014:569.823 - 8.716ms
+T6714 014:569.854   
+T6714 014:569.857   Closed
