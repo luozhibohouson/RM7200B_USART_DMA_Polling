@@ -28,11 +28,11 @@ void USART_Configure(uint32_t Baudrate)
     USART_InitStruct.USART_WordLength = USART_WordLength_8b;
     USART_InitStruct.USART_StopBits   = USART_StopBits_1;
     USART_InitStruct.USART_Parity     = USART_Parity_No;
-    USART_InitStruct.USART_Mode       = USART_Mode_Rx | USART_Mode_Tx;
+    USART_InitStruct.USART_Mode       = USART_Mode_Tx; // USART_Mode_Rx | USART_Mode_Tx;
     USART_InitStruct.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
     USART_Init(USART1, &USART_InitStruct);
 
-    USART_DMACmd(USART1, ENABLE);
+    // USART_DMACmd(USART1, ENABLE);
 
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
 
@@ -60,7 +60,7 @@ void USART_Configure(uint32_t Baudrate)
 
     USART_Cmd(USART1, ENABLE);
 
-    USART_DMA_Configure(uart_rxbuffer, sizeof(uart_rxbuffer));
+    // USART_DMA_Configure(uart_rxbuffer, sizeof(uart_rxbuffer));
 }
 
 void USART_DMA_Configure(uint8_t *Buffer, uint8_t Length)

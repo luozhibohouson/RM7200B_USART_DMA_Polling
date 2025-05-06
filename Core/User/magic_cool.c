@@ -28,7 +28,7 @@
 /*****************************************************************/
 
 
-float voltage_gain = 13.1;
+float voltage_gain = 11.8;
 float impedance[64] = {0};
 float phase[64] = {0};
 uint32_t freq_pwr[64] = {0};
@@ -50,9 +50,9 @@ uint32_t magic_cool_key_count = 0;
 
 uint32_t magic_cool_pwr_max = 0;
 
-uint32_t pwm1_duty_out = PWM1_FREQ*10/11;
-uint32_t pwm1_duty_limit_min = PWM1_FREQ*2/11; //最小为0.6V
-uint32_t pwm1_duty_limit_max = PWM1_FREQ*10/11; //最大为3.0V
+uint16_t pwm1_duty_out = HSI_VALUE/PWM1_FREQ*20/33;
+uint16_t pwm1_duty_limit_min = HSI_VALUE/PWM1_FREQ*4/33; //最小为0.4V - 145
+uint16_t pwm1_duty_limit_max = HSI_VALUE/PWM1_FREQ*30/33; //最大为3.0V - 1090
 
 float magic_cool_ph_proxth = 0;
 
@@ -310,7 +310,7 @@ int magic_cool_calc_impedance(uint32_t start_freq, uint32_t stop_freq, uint32_t 
 //            printf("vrms:%.5f irms:%.5f\r\n", adc_vrms, adc_irms);
         }
         zx = vrms / irms;  // Z 的模
-        printf("Vrms: %.5f Irms: %.5f Z: %.5f ", vrms, irms, zx);
+        printf("Vrms: %.5f Irms: %.5f Z: %.5f Dac: %d ", vrms, irms, zx, pwm1_duty_out);
 #else  // 其他方式，待定
 
 #endif
@@ -1497,7 +1497,7 @@ void magic_cool_config(void)
     sys_delayms(200);
     pid_init();
     magic_cool_set_adcfreq();
-    magic_cool_set_limt(25000, 30000);
+    magic_cool_set_limt(25000, 29000);
     pwm_set_config(26500, 50);  // KHz  50%占空比
     pwm_enable(DISABLE);
     set_power_enable(ENABLE);

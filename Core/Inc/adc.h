@@ -21,7 +21,7 @@
 
 #define ADC_CHANNEL_VHIN   ADC_Channel_9   // 高端直流电压
 // #define ADC_CHANNEL_IHIN   LL_ADC_CHANNEL_11   // 高端直流电流
-// #define ADC_CHANNEL_IGND   LL_ADC_CHANNEL_6    // 低端电流
+#define ADC_CHANNEL_IGND   ADC_Channel_6    // 低端电流
 #define ADC_CHANNEL_VOUT   ADC_Channel_7    // 输出电压
 #define ADC_CHANNEL_IOUT   ADC_Channel_6    // 输出电流
 

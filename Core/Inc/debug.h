@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 
-// #define ENABLE_PRINTF
+#define ENABLE_PRINTF
 
 #ifndef ENABLE_PRINTF
     // 若未定义ENABLE_PRINTF，则将printf定义为空操作

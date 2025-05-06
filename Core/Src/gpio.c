@@ -43,8 +43,8 @@ void GPIO_Configure(void)
 {
     GPIO_InitTypeDef  GPIO_InitStruct;
 
-    RCC_APB1PeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
-    RCC_APB1PeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
+    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
+    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
 
     GPIO_StructInit(&GPIO_InitStruct);
     GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_5;

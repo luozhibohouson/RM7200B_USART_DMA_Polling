@@ -5,8 +5,8 @@
 
 uint32_t adc_freq = 1000000;
 uint16_t adc_data[ADC_BUFFER_SIZE] = {0};
-uint16_t adc_voltage_data_i[ADC_CH_SIZE] = {0};
-uint16_t adc_current_data_i[ADC_CH_SIZE] = {0};
+// uint16_t adc_voltage_data_i[ADC_CH_SIZE] = {0};
+// uint16_t adc_current_data_i[ADC_CH_SIZE] = {0};
 float adc_voltage_data[ADC_CH_SIZE] = {0};
 float adc_current_data[ADC_CH_SIZE] = {0};
 int adc_freq_Level;
@@ -35,19 +35,18 @@ float adc_dc_lcur_avg = 0.0;  // 直流低压电流
 void ADC_Configure(void)
 {
     ADC_InitTypeDef  ADC_InitStruct;
-    DMA_InitTypeDef  DMA_InitStruct;
     GPIO_InitTypeDef GPIO_InitStruct;
 
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_ADC1, ENABLE);
 
+    ADC_DeInit(ADC1);
+
     ADC_StructInit(&ADC_InitStruct);
     ADC_InitStruct.ADC_Resolution = ADC_Resolution_12b;
     ADC_InitStruct.ADC_Prescaler  = ADC_Prescaler_4;    //60M/4=15M
-    ADC_InitStruct.ADC_Mode       = ADC_Mode_Scan;
+    ADC_InitStruct.ADC_Mode       = ADC_Mode_Continue;
     ADC_InitStruct.ADC_DataAlign  = ADC_DataAlign_Right;
     ADC_Init(ADC1, &ADC_InitStruct);
-
-    ADC_DMACmd(ADC1, ENABLE);
 
     // ADC_SampleTimeConfig(ADC1, ADC_Channel_0, ADC_SampleTime_240_5);
     // ADC_SampleTimeConfig(ADC1, ADC_Channel_2, ADC_SampleTime_240_5);
@@ -71,6 +70,11 @@ void ADC_Configure(void)
     GPIO_Init(GPIOA, &GPIO_InitStruct);
 
     ADC_Cmd(ADC1, ENABLE);
+}
+
+void ADC_DMA_Configure(uint32_t srcaddr, uint32_t num)
+{
+    DMA_InitTypeDef  DMA_InitStruct;
 
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA, ENABLE);
 
@@ -78,9 +82,9 @@ void ADC_Configure(void)
 
     DMA_StructInit(&DMA_InitStruct);
     DMA_InitStruct.DMA_PeripheralBaseAddr = (uint32_t)&(ADC1->ADDATA);
-    DMA_InitStruct.DMA_MemoryBaseAddr     = (uint32_t)adc_data;
+    DMA_InitStruct.DMA_MemoryBaseAddr     = (uint32_t)srcaddr;
     DMA_InitStruct.DMA_DIR                = DMA_DIR_PeripheralSRC;
-    DMA_InitStruct.DMA_BufferSize         = 3;
+    DMA_InitStruct.DMA_BufferSize         = num;
     DMA_InitStruct.DMA_PeripheralInc      = DMA_PeripheralInc_Disable;
     DMA_InitStruct.DMA_MemoryInc          = DMA_MemoryInc_Enable;
     DMA_InitStruct.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
@@ -92,6 +96,8 @@ void ADC_Configure(void)
     DMA_Init(DMA1_Channel1, &DMA_InitStruct);
 
     DMA_Cmd(DMA1_Channel1, ENABLE);
+
+    ADC_DMACmd(ADC1, ENABLE);
 }
 
 void adc_set_conv_freq(int freq_Level)
@@ -173,9 +179,8 @@ void adc_set_channel_dma(uint32_t srcaddr, uint32_t ch0, uint32_t ch1, uint32_t 
     DMA_Cmd(DMA1_Channel1, DISABLE);
     ADC_Cmd(ADC1, DISABLE);
 
-    // LL_ADC_REG_StopConversion(ADC1);
-    // adc_reinit();
-    //dma_reinit();
+    ADC_Configure();
+
     SamplingTime = adc_get_conv_freq();
     ADC_SampleTimeConfig(ADC1, ch0, SamplingTime);
     ADC_SampleTimeConfig(ADC1, ch1, SamplingTime);
@@ -184,45 +189,29 @@ void adc_set_channel_dma(uint32_t srcaddr, uint32_t ch0, uint32_t ch1, uint32_t 
     ADC_AnyChannelSelect(ADC1, 0, ch0);
     ADC_AnyChannelSelect(ADC1, 1, ch1);
 
-    DMA_StructInit(&DMA_InitStruct);
-    DMA_InitStruct.DMA_PeripheralBaseAddr = (uint32_t)&(ADC1->ADDATA);
-    DMA_InitStruct.DMA_MemoryBaseAddr     = (uint32_t)srcaddr;
-    DMA_InitStruct.DMA_DIR                = DMA_DIR_PeripheralSRC;
-    DMA_InitStruct.DMA_BufferSize         = num;
-    DMA_InitStruct.DMA_PeripheralInc      = DMA_PeripheralInc_Disable;
-    DMA_InitStruct.DMA_MemoryInc          = DMA_MemoryInc_Enable;
-    DMA_InitStruct.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
-    DMA_InitStruct.DMA_MemoryDataSize     = DMA_MemoryDataSize_HalfWord;
-    DMA_InitStruct.DMA_Mode               = DMA_Mode_Circular;
-    DMA_InitStruct.DMA_Priority           = DMA_Priority_High;
-    DMA_InitStruct.DMA_M2M                = DMA_M2M_Disable;
-    DMA_InitStruct.DMA_Auto_Reload        = DMA_Auto_Reload_Disable;
-    DMA_Init(DMA1_Channel1, &DMA_InitStruct);
-
-    DMA_Cmd(DMA1_Channel1, ENABLE);
-    ADC_Cmd(ADC1, ENABLE);
+    ADC_DMA_Configure(srcaddr, num);
 
     ADC_SoftwareStartConvCmd(ADC1, ENABLE);
 }
 
-void adc_voltage_current_get(int num)
-{
-    int i = 0;
-    int count = num << 1; // 2通道数据
+// void adc_voltage_current_get(int num)
+// {
+//     int i = 0;
+//     int count = num << 1; // 2通道数据
 
-    adc_set_channel_dma((uint32_t)&adc_data, ADC_CHANNEL_VOUT, ADC_CHANNEL_IOUT, count);
+//     adc_set_channel_dma((uint32_t)&adc_data, ADC_CHANNEL_VOUT, ADC_CHANNEL_IOUT, count);
 
-    while (RESET == DMA_GetFlagStatus(DMA1_FLAG_TC1))
-    {
-    }
+//     while (RESET == DMA_GetFlagStatus(DMA1_FLAG_TC1))
+//     {
+//     }
 
-    DMA_ClearFlag(DMA1_FLAG_TC1);
+//     DMA_ClearFlag(DMA1_FLAG_TC1);
 
-    for (i = 0; i < num; i++) {
-        adc_voltage_data_i[i] = adc_data[i * 2];
-        adc_voltage_data_i[i] = adc_data[i * 2 + 1];
-    }
-}
+//     for (i = 0; i < num; i++) {
+//         adc_voltage_data_i[i] = adc_data[i * 2];
+//         adc_voltage_data_i[i] = adc_data[i * 2 + 1];
+//     }
+// }
 
 void adc_voltage_get_vpp(int num)
 {
@@ -415,40 +404,43 @@ void adc_hvli_input_conv(int num)  // 直流高压输入电压,低端电流
 
     DMA_ClearFlag(DMA1_FLAG_TC1);
     for (i = 0; i < num; i++) {
-        adc_voltage_data_i[i] = adc_data[i * 2];
-        adc_current_data_i[i] = adc_data[i * 2 + 1];
-        vol_sum += adc_voltage_data_i[i];
-        cur_sum += adc_current_data_i[i];
+        // adc_voltage_data_i[i] = adc_data[i * 2];
+        // adc_current_data_i[i] = adc_data[i * 2 + 1];
+        // vol_sum += adc_voltage_data_i[i];
+        // cur_sum += adc_current_data_i[i];
+        vol_sum += adc_data[i * 2];
+        cur_sum += adc_data[i * 2 + 1];
 //        printf("%d %d\r\n", adc_voltage_data_i[i], adc_current_data_i[i]);
     }
 
     adc_dc_hvol_avg = vol_sum / num;
     adc_dc_lcur_avg = cur_sum / num;
-    adc_dc_lcur_avg -= 1024;
+    // adc_dc_lcur_avg -= 1024;
+    adc_dc_lcur_avg -= 1688; //减去偏置电流
 }
 #endif
 
-float voltage_get_vpp_sum(int num)  // 单个通道电压处理速度快
-{
-    int i = 0;
-    float vpp = 0;
-    for (i = 0; i < num; i++) {
-        adc_voltage_current_get(128);
-        vpp += get_peak_to_peak(adc_voltage_data, num);
-    }
-    return vpp;
-}
+// float voltage_get_vpp_sum(int num)  // 单个通道电压处理速度快
+// {
+//     int i = 0;
+//     float vpp = 0;
+//     for (i = 0; i < num; i++) {
+//         adc_voltage_current_get(128);
+//         vpp += get_peak_to_peak(adc_voltage_data, num);
+//     }
+//     return vpp;
+// }
 
-float current_get_ipp_sum(int num)  // 单个通道电流处理速度快
-{
-    int i = 0;
-    float ipp = 0;
-    for (i = 0; i < num; i++) {
-        adc_voltage_current_get(128);
-        ipp += get_peak_to_peak(adc_current_data, num);
-    }
-    return ipp;
-}
+// float current_get_ipp_sum(int num)  // 单个通道电流处理速度快
+// {
+//     int i = 0;
+//     float ipp = 0;
+//     for (i = 0; i < num; i++) {
+//         adc_voltage_current_get(128);
+//         ipp += get_peak_to_peak(adc_current_data, num);
+//     }
+//     return ipp;
+// }
 
 void adc_test(void)
 {

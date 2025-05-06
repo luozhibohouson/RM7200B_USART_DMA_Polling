@@ -34,7 +34,7 @@ void TIM13_Configure(void)
     TIM_OCStructInit(&TIM_OCInitStruct);
     TIM_OCInitStruct.TIM_OCMode       = TIM_OCMode_PWM1;
     TIM_OCInitStruct.TIM_OutputState  = TIM_OutputState_Enable;
-    TIM_OCInitStruct.TIM_Pulse        = (TimerPeriod*6/10);
+    TIM_OCInitStruct.TIM_Pulse        = (TimerPeriod*60/100);
     TIM_OCInitStruct.TIM_OCPolarity   = TIM_OCPolarity_High;
     TIM_OCInitStruct.TIM_OCIdleState  = TIM_OCIdleState_Set;
 
@@ -52,12 +52,12 @@ void TIM13_Configure(void)
 
     TIM_Cmd(TIM13, ENABLE);
 
-    TIM_CtrlPWMOutputs(TIM13, DISABLE);
+    TIM_CtrlPWMOutputs(TIM13, ENABLE);
 }
 
 void tim13_set_duty(uint32_t duty)
 {
-    TIM_SetCompare3(TIM13, duty);
+    TIM_SetCompare1(TIM13, duty);
 }
 
 // uint32_t pwm1_min_duty = PWM1_FREQ*2/11; //最小为0.6V
@@ -98,7 +98,7 @@ void TIM1_Configure(void)
     TIM_OCInitStruct.TIM_OCMode       = TIM_OCMode_PWM1;
     TIM_OCInitStruct.TIM_OutputState  = TIM_OutputState_Enable;
     TIM_OCInitStruct.TIM_OutputNState = TIM_OutputNState_Enable;
-    TIM_OCInitStruct.TIM_Pulse        = 0;
+    TIM_OCInitStruct.TIM_Pulse        = 5000-1;
     TIM_OCInitStruct.TIM_OCPolarity   = TIM_OCPolarity_High;
     TIM_OCInitStruct.TIM_OCNPolarity  = TIM_OCNPolarity_High;
     TIM_OCInitStruct.TIM_OCIdleState  = TIM_OCIdleState_Set;

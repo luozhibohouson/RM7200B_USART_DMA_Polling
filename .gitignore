@@ -4,3 +4,5 @@ Documentation/
 MDK-ARM/Objects
 Device/
 
+MDK-ARM/keil5_disp_size_bar.exe
+MDK-ARM/USART_DMA_Polling*
