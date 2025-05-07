@@ -1462,6 +1462,7 @@ void magic_cool_mode2(void)
     flow = get_air_flow();
 #endif
 
+    freq = pwm_get_freq();
 // 功率计算
 #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
         // 低电流
@@ -1469,17 +1470,15 @@ void magic_cool_mode2(void)
         hvol = adc_dc_hvol_avg;
         lcur = adc_dc_lcur_avg;
         power = hvol * lcur * 0.000885102;
+        printf("freq:%d, vpp:%0.2f, ipp:%.2f, imp: %.3f phase: %.3f hvol: %.2f lcur: %.2f power:%.2f flow:%d\r\n", freq, vpp, ipp, imp, phase, hvol, lcur, power, flow);
 #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
         // 高电流
         adc_hv_input_conv(128);
         hvol = adc_dc_hvol_avg;
         hcur = adc_dc_hcur_avg;
         power = hvol * hcur * 0.000885102;
+        printf("freq:%d, vpp:%0.2f, ipp:%.2f, imp: %.3f phase: %.3f hvol: %.2f hcur: %.2f power:%.2f flow:%d\r\n", freq, vpp, ipp, imp, phase, hvol, hcur, power, flow);
 #endif
-
-    freq = pwm_get_freq();
-    printf("freq:%d, vpp:%0.2f, ipp:%.2f, imp: %.3f phase: %.3f hvol: %.2f hcur: %.2f power:%.2f flow:%d\r\n", freq, vpp, ipp, imp, phase, hvol, hcur, power, flow);
-
 }
 
 void magic_cool_test(void)
