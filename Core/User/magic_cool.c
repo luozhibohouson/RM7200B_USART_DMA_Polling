@@ -50,9 +50,9 @@ uint32_t magic_cool_key_count = 0;
 
 uint32_t magic_cool_pwr_max = 0;
 
-uint16_t pwm1_duty_out = HSI_VALUE/PWM1_FREQ*20/33;
-uint16_t pwm1_duty_limit_min = HSI_VALUE/PWM1_FREQ*4/33; //最小为0.4V - 145
-uint16_t pwm1_duty_limit_max = HSI_VALUE/PWM1_FREQ*30/33; //最大为3.0V - 1090
+uint16_t pwm1_duty_out = HSI_VALUE/PWM1_FREQ*25/33;
+uint16_t pwm1_duty_limit_min = HSI_VALUE/PWM1_FREQ*2/33; //最小为0.2V - 145
+uint16_t pwm1_duty_limit_max = HSI_VALUE/PWM1_FREQ*33/33; //最大为3.0V - 1090
 
 float magic_cool_ph_proxth = 0;
 
@@ -193,7 +193,7 @@ int magic_cool_voltage_closeloop_dcdc(uint32_t vol_target, uint32_t vol_err, uin
         vpp = vpp_sum / 10;
         voltage_err = (vol_targetx - vpp);
 
-//        printf("err:%d, vpp:%d, vol_errx:%d, out:%d, delta:%d\r\n", voltage_err, vpp, vol_errx, pwm1_duty_out, pid_delta);
+        // printf("err:%d, vpp:%d, vol_errx:%d, pwm1_duty_out:%d\r\n", voltage_err, vpp, vol_errx, pwm1_duty_out);
         if (abs_i(voltage_err) < vol_errx) {  // 电压小于误差范围认为电压稳定
             count++;
             if (count > 10)    // 连续获取电压10次都在误差范围就认为电压稳定，退出
@@ -217,12 +217,12 @@ int magic_cool_voltage_closeloop_dcdc(uint32_t vol_target, uint32_t vol_err, uin
             pwm1_duty_out = pwm1_duty_limit_max;
             ret = 1;
         }
-//        printf("pwm1_duty_out:%d\r\n", pwm1_duty_out);
+        // printf("pwm1_duty_out:%d, pid_delta:%d\r\n", pwm1_duty_out, pid_delta);
         pwm1_set_duty(pwm1_duty_out);
         sys_delayms(50);
 
         if (ret == 1) {
-//            printf("pwm1_duty_out of range\r\n");
+            // printf("pwm1_duty_out of range\r\n");
             return 1;
         }
     }
@@ -310,7 +310,7 @@ int magic_cool_calc_impedance(uint32_t start_freq, uint32_t stop_freq, uint32_t 
 //            printf("vrms:%.5f irms:%.5f\r\n", adc_vrms, adc_irms);
         }
         zx = vrms / irms;  // Z 的模
-        printf("Vrms: %.5f Irms: %.5f Z: %.5f Dac: %d ", vrms, irms, zx, pwm1_duty_out);
+        printf("Vrms: %.5f Irms: %.5f Z: %.5f Dac: %.2f ", vrms, irms, zx, (float)(pwm1_duty_out*3.3/(HSI_VALUE/PWM1_FREQ)));
 #else  // 其他方式，待定
 
 #endif
@@ -1470,7 +1470,7 @@ void magic_cool_mode2(void)
         hvol = adc_dc_hvol_avg;
         lcur = adc_dc_lcur_avg;
         power = hvol * lcur * 0.000885102;
-        printf("freq:%d, vpp:%0.2f, ipp:%.2f, imp: %.3f phase: %.3f hvol: %.2f lcur: %.2f power:%.2f flow:%d\r\n", freq, vpp, ipp, imp, phase, hvol, lcur, power, flow);
+        printf("freq:%d, vpp:%0.2f, ipp:%.2f, imp: %.3f phase: %.3f hvol: %.2f lcur: %.2f power:%.2f flow:%d dac:%.2f\r\n", freq, vpp, ipp, imp, phase, hvol, lcur, power, flow, (float)(pwm1_duty_out*3.3/(HSI_VALUE/PWM1_FREQ)));
 #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
         // 高电流
         adc_hv_input_conv(128);
@@ -1496,7 +1496,7 @@ void magic_cool_config(void)
     sys_delayms(200);
     pid_init();
     magic_cool_set_adcfreq();
-    magic_cool_set_limt(25000, 29000);
+    magic_cool_set_limt(25000, 30000);
     pwm_set_config(26500, 50);  // KHz  50%占空比
     pwm_enable(DISABLE);
     set_power_enable(ENABLE);
@@ -1512,6 +1512,34 @@ void magic_cool_run(void)
 //    int i;
 //    int vppf, ippf;
     if (magic_cool_mode == 0) {
+        // static uint16_t cnt;
+        // if( cnt == 0 ) {
+        //     pwm_enable(ENABLE);
+        //     pwm_set_freq(26900);
+        //     cnt = 1000;
+        // }
+        // sys_delayms(1000);
+        // // for(; cnt<1000; cnt++) {
+        // //     adc_output_conv(128);
+        // //     printf("%.2f,", find_peak_to_peak(adc_voltage_data, 128));
+        // // }
+        // if( cnt == 1000 ) {
+        //     printf("\r\n");
+        //     adc_hvli_input_conv(128);
+        //     for(int i = 0; i < 128; i++) {
+        //         printf("%.2f \r\n", adc_voltage_data[i]);
+        //     }
+        //     printf("---------\r\n");
+        //     for(int i = 0; i < 128; i++) {
+        //         printf("%.2f \r\n", adc_current_data[i]);
+        //     }
+        //     // for(int i = 0; i < 128; i++) {
+        //     //     printf("%d, %d\r\n", adc_voltage_data[i], adc_current_data[i]);
+        //     // }
+        //     sys_delayms(100);
+        //     cnt = 1001;
+        //     // pwm_enable(DISABLE);
+        // }
         return;
     } else if (magic_cool_mode == 1) {  // 校准,阻抗谱
         magic_cool_set_target_vol(50);   // 设置运行电压

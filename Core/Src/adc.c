@@ -89,8 +89,8 @@ void ADC_DMA_Configure(uint32_t srcaddr, uint32_t num)
     DMA_InitStruct.DMA_MemoryInc          = DMA_MemoryInc_Enable;
     DMA_InitStruct.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
     DMA_InitStruct.DMA_MemoryDataSize     = DMA_MemoryDataSize_HalfWord;
-    DMA_InitStruct.DMA_Mode               = DMA_Mode_Circular;
-    DMA_InitStruct.DMA_Priority           = DMA_Priority_High;
+    DMA_InitStruct.DMA_Mode               = DMA_Mode_Normal;
+    DMA_InitStruct.DMA_Priority           = DMA_Priority_VeryHigh;
     DMA_InitStruct.DMA_M2M                = DMA_M2M_Disable;
     DMA_InitStruct.DMA_Auto_Reload        = DMA_Auto_Reload_Disable;
     DMA_Init(DMA1_Channel1, &DMA_InitStruct);
@@ -231,8 +231,8 @@ void adc_voltage_get_vpp(int num)
     period_sample_cnt = 1 + num - (num % period_sample_cnt);  // 完整周期采样个数
 
     vol_avg_sum = 0.0;
-    for (i = 0; i < num; i++) {
-        vol_avg_sum = (float)adc_data[i * 2];
+    for (i = 0; i < period_sample_cnt; i++) {
+        vol_avg_sum += (float)adc_data[i * 2];
     }
     // 计算平均值
     adc_vol_avg = vol_avg_sum / period_sample_cnt;   // 完整周期电压平均值
@@ -273,8 +273,8 @@ void adc_current_get_ipp(int num)
     period_sample_cnt = adc_freq / pwm_get_freq();  // 周期采样个数
     period_sample_cnt = 1 + num - (num % period_sample_cnt);  // 完整周期采样个数
     cur_avg_sum = 0.0;
-    for (i = 0; i < num; i++) {
-        cur_avg_sum = (float)adc_data[i * 2 + 1];
+    for (i = 0; i < period_sample_cnt; i++) {
+        cur_avg_sum += (float)adc_data[i * 2 + 1];
     }
     adc_cur_avg = cur_avg_sum / period_sample_cnt;   // 完整周期电流平均值
 
@@ -404,8 +404,8 @@ void adc_hvli_input_conv(int num)  // 直流高压输入电压,低端电流
 
     DMA_ClearFlag(DMA1_FLAG_TC1);
     for (i = 0; i < num; i++) {
-        // adc_voltage_data_i[i] = adc_data[i * 2];
-        // adc_current_data_i[i] = adc_data[i * 2 + 1];
+        // adc_voltage_data[i] = (float)adc_data[i * 2];
+        // adc_current_data[i] = (float)adc_data[i * 2 + 1];
         // vol_sum += adc_voltage_data_i[i];
         // cur_sum += adc_current_data_i[i];
         vol_sum += adc_data[i * 2];
@@ -416,7 +416,7 @@ void adc_hvli_input_conv(int num)  // 直流高压输入电压,低端电流
     adc_dc_hvol_avg = vol_sum / num;
     adc_dc_lcur_avg = cur_sum / num;
     // adc_dc_lcur_avg -= 1024;
-    adc_dc_lcur_avg -= 1688; //减去偏置电流
+    adc_dc_lcur_avg -= 1700; //减去偏置电流
 }
 #endif
 

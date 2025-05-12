@@ -112,7 +112,7 @@ void TIM1_Configure(void)
     TIM_BDTRInitStruct.TIM_OSSRState       = TIM_OSSRState_Enable;
     TIM_BDTRInitStruct.TIM_OSSIState       = TIM_OSSIState_Enable;
     TIM_BDTRInitStruct.TIM_LOCKLevel       = TIM_LOCKLevel_OFF;
-    TIM_BDTRInitStruct.TIM_DeadTime        = 120;
+    TIM_BDTRInitStruct.TIM_DeadTime        = 50;
     TIM_BDTRInitStruct.TIM_Break           = TIM_Break_Enable;
     TIM_BDTRInitStruct.TIM_BreakPolarity   = TIM_BreakPolarity_High;
     TIM_BDTRInitStruct.TIM_AutomaticOutput = TIM_AutomaticOutput_Enable;
