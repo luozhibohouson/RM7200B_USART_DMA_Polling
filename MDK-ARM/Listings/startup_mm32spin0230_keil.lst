@@ -62,7 +62,7 @@ ARM Macro Assembler    Page 1
                        ********/
    28 00000000         
    29 00000000         
-   30 00000000 00000400 
+   30 00000000 00000500 
 
 
 
@@ -70,24 +70,24 @@ ARM Macro Assembler    Page 2
 
 
                        Stack_Size
-                               EQU              0x00000400
+                               EQU              0x00000500
    31 00000000         
    32 00000000                 AREA             STACK, NOINIT, READWRITE, ALIGN
 =3
    33 00000000         Stack_Mem
                                SPACE            Stack_Size
-   34 00000400         __initial_sp
-   35 00000400         
-   36 00000400         
-   37 00000400         ; <h> Heap Configuration
-   38 00000400         ;   <o>  Heap Size (in Bytes) <0x0-0xFFFFFFFF:8>
-   39 00000400         ; </h>
-   40 00000400         
-   41 00000400 00000200 
+   34 00000500         __initial_sp
+   35 00000500         
+   36 00000500         
+   37 00000500         ; <h> Heap Configuration
+   38 00000500         ;   <o>  Heap Size (in Bytes) <0x0-0xFFFFFFFF:8>
+   39 00000500         ; </h>
+   40 00000500         
+   41 00000500 00000200 
                        Heap_Size
                                EQU              0x00000200
-   42 00000400         
-   43 00000400                 AREA             HEAP, NOINIT, READWRITE, ALIGN=
+   42 00000500         
+   43 00000500                 AREA             HEAP, NOINIT, READWRITE, ALIGN=
 3
    44 00000000         __heap_base
    45 00000000         Heap_Mem
@@ -383,7 +383,7 @@ Symbol: Stack_Mem
    Uses
       None
 Comment: Stack_Mem unused
-__initial_sp 00000400
+__initial_sp 00000500
 
 Symbol: __initial_sp
    Definitions
@@ -872,7 +872,7 @@ Symbol: Heap_Size
       At line 45 in file ..\Device\MM32SPIN0230\Source\KEIL_StartAsm\startup_mm
 32spin0230_keil.s
 Comment: Heap_Size used once
-Stack_Size 00000400
+Stack_Size 00000500
 
 Symbol: Stack_Size
    Definitions

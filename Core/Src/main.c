@@ -102,7 +102,7 @@ int main(void)
 
     while (1)
     {
-        key_scan();
+        // key_scan();
         rm_magic_run();
     }
 }

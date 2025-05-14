@@ -76,6 +76,10 @@ void key3_up_handle(void)
 void key_scan(void)
 {
     uint8_t key1, key2, key3;
+    static uint8_t debounce_cnt2 = 0;
+    static uint8_t key_status = 0;
+    static uint32_t key2_current_time = 0;
+    uint16_t key_long_time2 = 1000;
     uint8_t change_flag = 0;
 
     if ((get_systick() - key_tick) <= 20) {  // 20ms扫描一次
@@ -98,17 +102,52 @@ void key_scan(void)
     //         printf("key1 up\r\n");
     //     }
     // }
+
     if (key2_last != key2) {
-        change_flag = 1;
-        key2_last = key2;
-        if (key2 == 0) {
-            key2_down_handle();
-            printf("key2 down\r\n");
-        } else {
-            key2_up_handle();
-            printf("key2 up\r\n");
+        debounce_cnt2++;
+        if (debounce_cnt2 >= 3) {
+            change_flag = 1;
+            debounce_cnt2 = 0;
+
+            key2_last = key2;
+            if (key2 == 0) {
+                // key2_down_handle();
+                key_status |= 0x01;
+                key2_current_time = get_systick();
+                // printf("key2 down\r\n");
+            } else {
+                // key2_up_handle();
+                key_status = 0;
+                // printf("key2 up\r\n");
+            }
+        }
+    } else {
+        debounce_cnt2 = 0;
+
+        if( key2 == 0 ) {
+            key_long_time2 = 1000;
+            if( key_status != 0x02 ) {
+                if( (get_systick() - key2_current_time) > key_long_time2 ) {
+                    key2_current_time = get_systick();
+                    key_status = 0x02; //即为KeyBack
+                    change_flag = 1;
+                }
+            }
         }
     }
+
+    // if (key2_last != key2) {
+    //     change_flag = 1;
+    //     key2_last = key2;
+    //     if (key2 == 0) {
+    //         key2_down_handle();
+    //         printf("key2 down\r\n");
+    //     } else {
+    //         key2_up_handle();
+    //         printf("key2 up\r\n");
+    //     }
+    // }
+
     // if (key3_last != key3) {
     //     change_flag = 1;
     //     key3_last = key3;
@@ -121,7 +160,7 @@ void key_scan(void)
     //     }
     // }
     if (change_flag == 1)
-        magic_cool_key_scan(1, key2, 1);
+        magic_cool_key_scan(1, key_status, 1);
 }
 
 /************************************************************************/

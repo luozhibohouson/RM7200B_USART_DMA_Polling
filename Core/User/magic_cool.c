@@ -26,7 +26,8 @@
 #define     KEY_VOL_CFG     1  // 按键设置电压
 
 /*****************************************************************/
-
+float flow_target = 50.0;
+uint8_t update_cur;
 
 float voltage_gain = 11.8;
 float impedance[64] = {0};
@@ -81,22 +82,41 @@ void magic_cool_key_scan(uint8_t key1, uint8_t key2, uint8_t key3)
 //         magic_cool_voltage_closeloop(magic_cool_target_vol, 2, 100);  // 电压闭环    ;
 // #endif
 //     }
-    if (mc_key2_last != key2) {
-#if KEY_VOL_CFG
 
-#else
-        if (manual == 1) {
-            manual = 0;
-            return;
-        }
-#endif
+    if (key2 == 0x01) {
         if (magic_cool_mode == 0) {
             magic_cool_mode = 1;
+            flow_target = 50.0;
         } else {
-            magic_cool_mode = 0;
-            pwm_enable(DISABLE);
+            flow_target -= 2.5; //变化2.5V，流量变化大概为0.1L/min
+            if( flow_target < 40 ) {
+                flow_target = 55.0;
+            }
+            update_cur = 1;
         }
+    } else if (key2 == 0x02) {
+        magic_cool_mode = 0;
+        pwm_enable(DISABLE);
     }
+
+//     if (mc_key2_last != key2) {
+// #if KEY_VOL_CFG
+
+// #else
+//         if (manual == 1) {
+//             manual = 0;
+//             return;
+//         }
+// #endif
+//         if (magic_cool_mode == 0) {
+//             magic_cool_mode = 1;
+//         } else {
+//             magic_cool_mode = 0;
+//             pwm_enable(DISABLE);
+//         }
+//     }
+
+
 //     if (mc_key3_last != key3) {
 // #if KEY_VOL_CFG
 //         magic_cool_target_vol += 5; // 电压增加
@@ -359,7 +379,7 @@ int magic_cool_calc_impedance(uint32_t start_freq, uint32_t stop_freq, uint32_t 
         hvol = adc_dc_hvol_avg;
         lcur = adc_dc_lcur_avg;
         freq_pwr[index] = hvol * lcur;
-        printf("hvol: %.2f lcur: %.2f ", hvol, lcur);
+        printf("hvol: %.2f lcur: %.2f pwr: %d ", hvol, lcur, freq_pwr[index]);
 #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
         // 高电流
         adc_hv_input_conv(128);
@@ -405,9 +425,11 @@ void magic_cool_run_impedance(void)
     float cur_sum = 0.0;
     float flow = 0.0;
 
-
-    pwm_enable(ENABLE);
+    // 从低频率开始，防止过冲烧坏气泵
     pwm_set_freq(25000);
+    // 恢复默认dac
+    pwm1_duty_out = HSI_VALUE/PWM1_FREQ*25/33;
+    pwm_enable(ENABLE);
     adc_output_conv(128);
 
     len = magic_cool_calc_impedance(magic_cool_freqstart, magic_cool_freqstop, 100);  // 阻抗/频率谱
@@ -417,13 +439,13 @@ void magic_cool_run_impedance(void)
      *  1. 先找极小值，如果有多个极小值，则选择最小的极小值
      *  2. 找极大值，极大值依赖于极小值，找高于极小值频率的极大值的最高值？？？？ 距离极小值最近的极大值？？？？？
      */
-    find_extremum(impedance, len, &val_max, &val_min, &idx_max, &idx_min);  // 找极值
+    // find_extremum(impedance, len, &val_max, &val_min, &idx_max, &idx_min);  // 找极值
 //    find_extremum_minima(impedance, len, &val_min, &idx_min);  // 找极小值
 //    find_extremum_maxima(impedance, len, &val_max, &idx_max);  // 找极大值
 
     // 频率处理
-    freq_min = magic_cool_freqstart + 100 * idx_min;  // 极小值对应频率
-    freq_max = magic_cool_freqstart + 100 * idx_max;  // 极大值对应频率
+    // freq_min = magic_cool_freqstart + 100 * idx_min;  // 极小值对应频率
+    // freq_max = magic_cool_freqstart + 100 * idx_max;  // 极大值对应频率
 //    freq_min = freq_max;
 #if MAGIC_COOL_TRACK_DEFAULT == MAGIC_COOL_TRACK_IMPEDANCE
     gold_freq = freq_min;  // 阻抗最小点追频
@@ -1161,14 +1183,21 @@ void magic_cool_freq_track_current(void)
     uint32_t index = 0;
     uint32_t pwr_arr[32] = {0};
 
-#if 0
-    if (get_systick() > scan_tick) {
+#if 1
+    #define FREQ_STEP 50
+    //频率范围
+    #define FREQ_RANGE 200
+
+    // if (get_systick() > scan_tick) {
+    if( /*get_systick() > scan_tick || */(uint16_t)flow_target != magic_cool_target_vol ) {
+        magic_cool_target_vol = (uint16_t)flow_target;
+        printf("test_vol: %d\r\n", magic_cool_target_vol);
         scan_tick = get_systick() + 120000;    // 2min = 2 * 60s * 1000
         freq1 = pwm_get_freq();
         j = 0;
-        for (temp = freq1 - 500; temp < (freq1 + 500); temp += 50) {  // ±500Hz 扫频
+        for (temp = freq1 - FREQ_RANGE; temp < (freq1 + FREQ_RANGE); temp += FREQ_STEP) {  // ±500Hz 扫频
             pwm_set_freq(temp);  // 设置当前频率
-            magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 2, 100);// 电压闭环
+            magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
             sys_delayms(200);
             for (i = 0; i < n; i++) {
                 sys_delayms(50);
@@ -1189,6 +1218,10 @@ void magic_cool_freq_track_current(void)
             pwrx = pwrx / n;
             pwr_arr[j++] = pwrx;
             printf("--scan freq:%d pwr:%d\r\n", temp, pwrx);
+
+            if( !magic_cool_mode ) {
+                return;
+            }
         }
 
 
@@ -1199,10 +1232,10 @@ void magic_cool_freq_track_current(void)
                 temp = i;
             }
         }
-        temp = freq1 - 500 + temp * 50;
+        temp = freq1 - FREQ_RANGE + temp * FREQ_STEP;
         printf("--scan max freq:%d pwr:%d\r\n", temp, magic_cool_pwr_max);
         pwm_set_freq(temp);  // 设置当前频率
-        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 2, 100);// 电压闭环
+        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
         sys_delayms(200);
     }
 #endif
@@ -1241,7 +1274,7 @@ void magic_cool_freq_track_current(void)
         freq0 = freq1 - freq_stepx;
 
         pwm_set_freq(freq1);  // 设置当前频率
-        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 2, 100);// 电压闭环
+        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
         sys_delayms(200);
         pwr1 = 0;
         for (j = 0; j < n; j++) {
@@ -1264,7 +1297,7 @@ void magic_cool_freq_track_current(void)
         printf("freq1: %d pwr1:%d\r\n", freq1, pwr1);
 
         pwm_set_freq(freq0);  // 设置当前频率-20Hz
-        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 2, 100);// 电压闭环
+        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
         sys_delayms(200);
         pwr0 = 0;
         for (j = 0; j < n; j++) {
@@ -1287,7 +1320,7 @@ void magic_cool_freq_track_current(void)
         printf("freq0: %d pwr0:%d\r\n", freq0, pwr0);
 
         pwm_set_freq(freq2);  // 设置当前频率+20Hz
-        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 2, 100);// 电压闭环
+        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
         sys_delayms(200);
         pwr2 = 0;
         for (j = 0; j < n; j++) {
@@ -1308,20 +1341,24 @@ void magic_cool_freq_track_current(void)
         pwr2 = pwr2 / n;
         printf("freq2: %d pwr2:%d\r\n", freq2, pwr2);
 
+        if( !magic_cool_mode ) {
+            return;
+        }
+
         if (((pwr0 - pwr1) > pwr_proxth) && ((pwr0 - pwr2) > pwr_proxth)) {
             pwm_set_freq(freq0);
             printf("set freq0:%d\r\n", freq0);
-            magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 2, 100);// 电压闭环
+            magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
             continue;
         } else if (((pwr1 - pwr0) > pwr_proxth) && ((pwr1 - pwr2) > pwr_proxth)) {
             pwm_set_freq(freq1);
             printf("set freq1:%d\r\n", freq1);
-            magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 2, 100);// 电压闭环
+            magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
             break;
         } else if (((pwr2 - pwr0) > pwr_proxth) && ((pwr2 - pwr1) > pwr_proxth)) {
             pwm_set_freq(freq2);
             printf("set freq2:%d\r\n", freq2);
-            magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 2, 100);// 电压闭环
+            magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
             continue;
         } else {
             pwm_set_freq(freq1);
@@ -1350,10 +1387,10 @@ void magic_cool_freq_track(void)
 
 #if MAGIC_COOL_TRACK_DEFAULT == MAGIC_COOL_TRACK_PHASE
    // 相位最小，
-   if (get_systick() >= tick_ph) {
-       magic_cool_freq_track_phase();
-       tick_ph = get_systick() + feedback_tick;
-   }
+    if (get_systick() >= tick_ph) {
+        magic_cool_freq_track_phase();
+        tick_ph = get_systick() + feedback_tick;
+    }
 #elif MAGIC_COOL_TRACK_DEFAULT == MAGIC_COOL_TRACK_IMPEDANCE
     // 阻抗最小
     if (get_systick() >= tick_imp) {
@@ -1362,7 +1399,8 @@ void magic_cool_freq_track(void)
     }
 #elif MAGIC_COOL_TRACK_DEFAULT == MAGIC_COOL_TRACK_CURRENT
     // 电流
-    if (get_systick() >= tick_cur) {
+    if (get_systick() >= tick_cur || update_cur == 1) {
+        update_cur = 0;
         magic_cool_freq_track_current();
         tick_cur = get_systick() + feedback_tick;
     }
@@ -1371,7 +1409,7 @@ void magic_cool_freq_track(void)
 #endif
 
     if (get_systick() >= tick_vol) {
-        magic_cool_voltage_closeloop(magic_cool_target_vol, 2, 50);// 电压闭环
+        magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 50);// 电压闭环
         tick_vol = get_systick() + 500;
     }
 }
@@ -1469,14 +1507,15 @@ void magic_cool_mode2(void)
         adc_hvli_input_conv(128);
         hvol = adc_dc_hvol_avg;
         lcur = adc_dc_lcur_avg;
-        power = hvol * lcur * 0.000885102;
+        // 系数计算: hvol和lcur为adc值，将该值转换为电压电流后简化计算就能得到一个系数
+        power = hvol * lcur * 8.843037 / 1E4; // 0.0008843037
         printf("freq:%d, vpp:%0.2f, ipp:%.2f, imp: %.3f phase: %.3f hvol: %.2f lcur: %.2f power:%.2f flow:%d dac:%.2f\r\n", freq, vpp, ipp, imp, phase, hvol, lcur, power, flow, (float)(pwm1_duty_out*3.3/(HSI_VALUE/PWM1_FREQ)));
 #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
         // 高电流
         adc_hv_input_conv(128);
         hvol = adc_dc_hvol_avg;
         hcur = adc_dc_hcur_avg;
-        power = hvol * hcur * 0.000885102;
+        power = hvol * hcur * 8.843037 / 1E4; // 0.0008843037
         printf("freq:%d, vpp:%0.2f, ipp:%.2f, imp: %.3f phase: %.3f hvol: %.2f hcur: %.2f power:%.2f flow:%d\r\n", freq, vpp, ipp, imp, phase, hvol, hcur, power, flow);
 #endif
 }
@@ -1509,6 +1548,7 @@ void magic_cool_config(void)
 
 void magic_cool_run(void)
 {
+    magic_cool_mode ? led_on() : led_off();
 //    int i;
 //    int vppf, ippf;
     if (magic_cool_mode == 0) {

@@ -37,7 +37,7 @@
 // 阻抗计算方式： 1. 通过Vpp，Ipp计算，2. 通过有效值计算，3. 其他
 #define MAGIC_COOL_IMPEDANCE_VPP        0   // 通过Vpp，Ipp计算
 #define MAGIC_COOL_IMPEDANCE_RMS        1   // 通过有效值计算
-#define MAGIC_COOL_IMPEDANCE_DEFAULT    MAGIC_COOL_IMPEDANCE_RMS   // 默认通过Vpp，Ipp计算
+#define MAGIC_COOL_IMPEDANCE_DEFAULT    2   // 默认通过Vpp，Ipp计算
 
 // 相位检测方式： 1. FFT求相位差，2. 点积求相位差，3. 过零比较器求相位差，4. 其他
 #define MAGIC_COOL_PHASE_FFT            0   // FFT求相位差
