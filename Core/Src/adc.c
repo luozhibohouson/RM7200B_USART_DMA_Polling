@@ -26,6 +26,8 @@ float adc_dc_hvol_avg = 0.0;  // 直流高压电压
 float adc_dc_hcur_avg = 0.0;  // 直流高压电流
 float adc_dc_lcur_avg = 0.0;  // 直流低压电流
 
+uint16_t adc_dc_lcur_offset = 0;
+
 /***********************************************************************************************************************
   * @brief
   * @note   none
@@ -416,7 +418,13 @@ void adc_hvli_input_conv(int num)  // 直流高压输入电压,低端电流
     adc_dc_hvol_avg = vol_sum / num;
     adc_dc_lcur_avg = cur_sum / num;
     // adc_dc_lcur_avg -= 1024;
-    adc_dc_lcur_avg -= 1700; //减去偏置电流
+    // adc_dc_lcur_avg -= 1886; //减去偏置电流
+
+    if( !adc_dc_lcur_offset ) {
+        adc_dc_lcur_offset = (uint16_t)adc_dc_lcur_avg;
+        printf("adc_dc_lcur_offset:%d\r\n", adc_dc_lcur_offset);
+    }
+    adc_dc_lcur_avg -= adc_dc_lcur_offset;
 }
 #endif
 
@@ -441,22 +449,87 @@ void adc_hvli_input_conv(int num)  // 直流高压输入电压,低端电流
 //     }
 //     return ipp;
 // }
-
-void adc_test(void)
+#if 0
+void adc_init(void)
 {
-    int i = 128;
-    while(1) {
-        adc_output_conv(128);
+    ADC_InitTypeDef ADC_InitStruct;
+
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_ADC1, ENABLE);
+
+    ADC_StructInit(&ADC_InitStruct);
+    ADC_InitStruct.ADC_Resolution = ADC_Resolution_12b;
+    ADC_InitStruct.ADC_Prescaler  = ADC_Prescaler_4;    //60M/4=15M
+    ADC_InitStruct.ADC_Mode       = ADC_Mode_Continue;
+    ADC_InitStruct.ADC_DataAlign  = ADC_DataAlign_Right;
+    ADC_Init(ADC1, &ADC_InitStruct);
+
+    ADC_VrefSensorCmd(ENABLE);
+
+    ADC_Cmd(ADC1, ENABLE);
+
+    ADC_SampleTimeConfig(ADC1, ADC_Channel_VoltTempSensor, ADC_SampleTime_2_5);
+    // ADC_SampleTimeConfig(ADC1, ADC_Channel_2, ADC_SampleTime_240_5);
+    // ADC_SampleTimeConfig(ADC1, ADC_Channel_3, ADC_SampleTime_240_5);
+
+    ADC_AnyChannelNumCfg(ADC1, 0);
+    ADC_AnyChannelSelect(ADC1, 0, ADC_Channel_VoltTempSensor);
+    // ADC_AnyChannelSelect(ADC1, 1, ADC_Channel_2);
+    // ADC_AnyChannelSelect(ADC1, 2, ADC_Channel_3);
+    ADC_AnyChannelCmd(ADC1, ENABLE);
+
+    ADC_DMA_Configure((uint32_t)&adc_data, 128);
+}
+
+float vol = 0.0;
+void ADC_InternalVoltageSensor_Sample(void)
+{
+    uint16_t ConversionValue = 0;
+    uint16_t CalibrationData = *(uint16_t *)(0x1FFFF7E0);
+    float    VrefCalculation = (float)CalibrationData * (float)3.3 / (float)4096.0;
+
+    // printf("\r\nTest %s, 0x%x, %0.2f", __FUNCTION__, CalibrationData, VrefCalculation);
+
+    while (1)
+    {
+        DMA_Cmd(DMA1_Channel1, DISABLE);
+        ADC_Cmd(ADC1, DISABLE);
+
+        adc_init();
+
+        ADC_DMA_Configure((uint32_t)&adc_data, 128);
+
+        ADC_SoftwareStartConvCmd(ADC1, ENABLE);
+
         while (RESET == DMA_GetFlagStatus(DMA1_FLAG_TC1))
         {
         }
 
         DMA_ClearFlag(DMA1_FLAG_TC1);
-//        for (i = 0; i < 128; i++) {
-//            printf("[%d] %f %f\r\n", i, adc_voltage_data[i], adc_current_data[i]);
-//        }
-        sys_delayms(100);
+
+        ConversionValue = adc_data[128/2];
+        vol = (float)4096.0 * (float)VrefCalculation / (float)ConversionValue;
+
+        // printf("\r\nVDDA = %0.2fV", (float)4096.0 * (float)VrefCalculation / (float)ConversionValue);
+
+        sys_delayms(500);
     }
 }
 
+void adc_test(void)
+{
+    ADC_InternalVoltageSensor_Sample();
+
+    int i = 128;
+    ADC_VrefSensorCmd(ENABLE);
+    sys_delayms(100);
+    while(1) {
+        adc_output_conv(128);
+        for (i = 0; i < 128; i++) {
+            // printf("[%d] %f %f\r\n", i, adc_voltage_data[i], adc_current_data[i]);
+            printf("%d\r\n", adc_data[i*2]);
+        }
+        sys_delayms(100);
+    }
+}
+#endif
 

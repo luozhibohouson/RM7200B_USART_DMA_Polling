@@ -3,9 +3,9 @@
 
 #include <stdio.h>
 
-#define ENABLE_PRINTF
+#define ENABLE_PRINTF   1
 
-#ifndef ENABLE_PRINTF
+#if !ENABLE_PRINTF
     // 若未定义ENABLE_PRINTF，则将printf定义为空操作
     #define printf(fmt, ...) ((void)0)
 #endif

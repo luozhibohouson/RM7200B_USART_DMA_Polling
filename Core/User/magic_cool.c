@@ -89,7 +89,7 @@ void magic_cool_key_scan(uint8_t key1, uint8_t key2, uint8_t key3)
             flow_target = 50.0;
         } else {
             flow_target -= 2.5; //变化2.5V，流量变化大概为0.1L/min
-            if( flow_target < 40 ) {
+            if( flow_target < 30 ) {
                 flow_target = 55.0;
             }
             update_cur = 1;
@@ -1543,6 +1543,9 @@ void magic_cool_config(void)
     pwm1_set_duty(pwm1_duty_out);  // 设置DAC输出DCDC
     // set_dac_output(2, 1024);  // cur offset
     magic_cool_mode = 0;
+
+    // 获取偏置电流
+    adc_hvli_input_conv(128);
 }
 
 
