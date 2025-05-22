@@ -25,8 +25,10 @@
 
 #define     KEY_VOL_CFG     1  // 按键设置电压
 
+#define     VOL_TARGET     50  // 流量目标
+
 /*****************************************************************/
-float flow_target = 50.0;
+float flow_target = VOL_TARGET;
 uint8_t update_cur;
 
 float voltage_gain = 11.8;
@@ -235,6 +237,11 @@ int magic_cool_voltage_closeloop_dcdc(uint32_t vol_target, uint32_t vol_err, uin
             ret = 1;
         } else if (pwm1_duty_out > pwm1_duty_limit_max) {
             pwm1_duty_out = pwm1_duty_limit_max;
+            ret = 1;
+        }
+
+        if( pid_delta < 5 ) {
+            // 防止过度循环，加快系统运算时间
             ret = 1;
         }
         // printf("pwm1_duty_out:%d, pid_delta:%d\r\n", pwm1_duty_out, pid_delta);
@@ -1177,13 +1184,14 @@ void magic_cool_freq_track_current(void)
     int pwr0, pwr1, pwr2;
     int pwrx = 0;
     uint32_t dc_vol, dc_cur;
-    int pwr_proxth = 9000;
+    int pwr_proxth = 11308; //10mW
 
+    static uint8_t cnt0 = 0, cnt1 = 0, cnt2 = 0;
     static uint32_t scan_tick = 0;
     uint32_t index = 0;
     uint32_t pwr_arr[32] = {0};
 
-#if 1
+#if 0
     #define FREQ_STEP 50
     //频率范围
     #define FREQ_RANGE 200
@@ -1274,6 +1282,8 @@ void magic_cool_freq_track_current(void)
         freq0 = freq1 - freq_stepx;
 
         pwm_set_freq(freq1);  // 设置当前频率
+        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 2, 100);// 电压闭环
+        sys_delayms(50);
         magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
         sys_delayms(200);
         pwr1 = 0;
@@ -1297,6 +1307,8 @@ void magic_cool_freq_track_current(void)
         printf("freq1: %d pwr1:%d\r\n", freq1, pwr1);
 
         pwm_set_freq(freq0);  // 设置当前频率-20Hz
+        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 2, 100);// 电压闭环
+        sys_delayms(50);
         magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
         sys_delayms(200);
         pwr0 = 0;
@@ -1320,6 +1332,8 @@ void magic_cool_freq_track_current(void)
         printf("freq0: %d pwr0:%d\r\n", freq0, pwr0);
 
         pwm_set_freq(freq2);  // 设置当前频率+20Hz
+        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 2, 100);// 电压闭环
+        sys_delayms(50);
         magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
         sys_delayms(200);
         pwr2 = 0;
@@ -1346,9 +1360,17 @@ void magic_cool_freq_track_current(void)
         }
 
         if (((pwr0 - pwr1) > pwr_proxth) && ((pwr0 - pwr2) > pwr_proxth)) {
-            pwm_set_freq(freq0);
-            printf("set freq0:%d\r\n", freq0);
-            magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
+            if( cnt0 == 0 ) {
+                cnt0++;
+                cnt1 = 0;
+                cnt2 = 0;
+                pwm_set_freq(freq1);
+            } else {
+                cnt0 = 0;
+                pwm_set_freq(freq0);
+                printf("set freq0:%d\r\n", freq0);
+                magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
+            }
             continue;
         } else if (((pwr1 - pwr0) > pwr_proxth) && ((pwr1 - pwr2) > pwr_proxth)) {
             pwm_set_freq(freq1);
@@ -1356,15 +1378,30 @@ void magic_cool_freq_track_current(void)
             magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
             break;
         } else if (((pwr2 - pwr0) > pwr_proxth) && ((pwr2 - pwr1) > pwr_proxth)) {
-            pwm_set_freq(freq2);
-            printf("set freq2:%d\r\n", freq2);
-            magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
+            if( cnt2 == 0 ) {
+                cnt2++;
+                cnt0 = 0;
+                cnt1 = 0;
+                pwm_set_freq(freq1);
+            } else {
+                cnt2 = 0;
+                pwm_set_freq(freq2);
+                printf("set freq2:%d\r\n", freq2);
+                magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
+            }
             continue;
         } else {
             pwm_set_freq(freq1);
+            cnt0 = 0;
+            cnt1 = 0;
+            cnt2 = 0;
         }
 
     }
+
+    cnt0 = 0;
+    cnt1 = 0;
+    cnt2 = 0;
 }
 #endif
 
@@ -1533,19 +1570,23 @@ void magic_cool_config(void)
 //    air_flowmeter_test();
 #endif
     sys_delayms(200);
+
+#if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
+    adc_hvli_input_conv(128);
+#elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
+    adc_hv_input_conv(128);
+#endif
+
     pid_init();
     magic_cool_set_adcfreq();
     magic_cool_set_limt(25000, 30000);
     pwm_set_config(26500, 50);  // KHz  50%占空比
     pwm_enable(DISABLE);
     set_power_enable(ENABLE);
-    magic_cool_set_target_vol(50);   // 设置运行电压
+    magic_cool_set_target_vol(VOL_TARGET);   // 设置运行电压
     pwm1_set_duty(pwm1_duty_out);  // 设置DAC输出DCDC
     // set_dac_output(2, 1024);  // cur offset
     magic_cool_mode = 0;
-
-    // 获取偏置电流
-    adc_hvli_input_conv(128);
 }
 
 
@@ -1585,11 +1626,11 @@ void magic_cool_run(void)
         // }
         return;
     } else if (magic_cool_mode == 1) {  // 校准,阻抗谱
-        magic_cool_set_target_vol(50);   // 设置运行电压
+        magic_cool_set_target_vol(VOL_TARGET);   // 设置运行电压
         magic_cool_run_impedance();
 //        pwm_set_freq(ch, 28000);
         magic_cool_mode = 3;
-        magic_cool_set_target_vol(50);   // 设置运行电压
+        magic_cool_set_target_vol(VOL_TARGET);   // 设置运行电压
 //        oled_show_ui();
     } else if (magic_cool_mode == 2) {  // 不追频运行，打印电压电流流量
         magic_cool_mode2();
