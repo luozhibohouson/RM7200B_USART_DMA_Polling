@@ -6,6 +6,9 @@ uint32_t uart_rx_len = 0;
 uint8_t  uart_rxbuffer[30] = {0};
 uint8_t  uart_cmd[30] = {0};
 
+static uint32_t vector_table[48] __attribute__((at(0x20000000)));
+static upgrade_state_t upgrade_state __attribute__((at(0x200000C0)));
+
 void USART_DMA_Configure(uint8_t *Buffer, uint8_t Length);
 /***********************************************************************************************************************
   * @brief
@@ -19,7 +22,7 @@ void USART_PrintfConfigure(uint32_t Baudrate)
     USART_InitTypeDef USART_InitStruct;
     NVIC_InitTypeDef  NVIC_InitStruct;
 
-    sys_delayms(1000); // 禁用SWD接口
+    sys_delayms(500); // 禁用SWD接口
 
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART1, ENABLE);
 
@@ -195,6 +198,189 @@ void usart_callback(void)
 #endif
 }
 
+uint16_t crc16(uint8_t* buff, uint32_t len)
+{
+    uint16_t crc = 0;
+
+    while(len--)
+    {
+        crc ^= (uint16_t) (*(buff++)) << 8;
+
+        for(int i = 0; i < 8; i++)
+        {
+            if(crc & 0x8000)
+            {
+                crc = (crc << 1) ^ 0x1021;
+            }
+            else
+            {
+                crc = crc << 1;
+            }
+        }
+    }
+
+    return crc;
+}
+
+
+/**
+ * @brief 发送协议帧
+ * @param cmd 指令
+ * @param data 数据指针
+ * @param data_len 数据长度
+ * @return 0:成功 1:失败
+ */
+uint8_t usart_send_frame(uint8_t cmd, uint8_t *data, uint16_t data_len)
+{
+    uint8_t tx_buffer[16];  // 足够容纳任何响应帧：帧头(1)+指令(1)+长度(2)+数据(3)+CRC(2)+帧尾(2)=11字节
+    uint16_t frame_len = 0;
+
+    // 检查数据长度，bootloader响应数据应该很小
+    if (data_len > CMD_RESPONSE_MAX_DATA_LEN) {
+        return 1;  // 响应数据过长
+    }
+
+    // 构建协议帧: 帧头(1) + 指令(1) + 数据长度(2) + 数据(N) + CRC16(2) + 帧尾(2)
+    tx_buffer[frame_len++] = PROTOCOL_FRAME_HEAD;     // 帧头 0xBB
+    tx_buffer[frame_len++] = cmd;                     // 指令
+    tx_buffer[frame_len++] = (data_len >> 8) & 0xFF; // 数据长度高字节
+    tx_buffer[frame_len++] = data_len & 0xFF;         // 数据长度低字节
+
+    // 添加数据
+    if (data != NULL && data_len > 0) {
+        memcpy(&tx_buffer[frame_len], data, data_len);
+        frame_len += data_len;
+    }
+
+    // 计算CRC16 (对指令+数据长度+数据进行校验)
+    uint16_t crc = crc16(&tx_buffer[1], 1 + 2 + data_len);
+    tx_buffer[frame_len++] = (crc >> 8) & 0xFF;      // CRC16高字节
+    tx_buffer[frame_len++] = crc & 0xFF;             // CRC16低字节
+
+    // 帧尾
+    tx_buffer[frame_len++] = PROTOCOL_FRAME_TAIL1;   // 帧尾 0x55
+    tx_buffer[frame_len++] = PROTOCOL_FRAME_TAIL2;   // 帧尾 0x0A
+
+    // 发送数据
+    usart_transmit(tx_buffer, frame_len);
+
+    return 0;
+}
+
+/**
+ * @brief 处理调流量指令
+ * @param data 数据指针
+ * @param data_len 数据长度
+ */
+static void handle_flow_adjust_cmd(uint8_t *data, uint16_t data_len)
+{
+    uint8_t error_code = ERR_SUCCESS;
+
+    // 验证数据长度（应该是2字节：方向+流量）
+    if (data_len != CMD_FLOW_ADJUST_DATA_LEN) {
+        error_code = ERR_INVALID_LENGTH;
+    } else {
+        uint8_t direction = data[0];  // 0:减少, 1:增加
+        uint8_t flow_level = data[1]; // 1~5
+
+        // 验证参数
+        if (direction > 1 || flow_level < 1 || flow_level > 5) {
+            error_code = ERR_INVALID_PARAM;
+        } else {
+            // FIXME: 实际的流量调节逻辑 -- bootloader不需要该指令
+            error_code = ERR_SUCCESS;
+        }
+    }
+
+    // 发送响应
+    usart_send_frame(CMD_FLOW_ADJUST, &error_code, 1);
+}
+
+/**
+ * @brief 处理系统升级指令
+ * @param data 数据指针
+ * @param data_len 数据长度
+ */
+static void handle_system_upgrade_cmd(uint8_t *data, uint16_t data_len)
+{
+    uint8_t error_code = ERR_SUCCESS;
+
+    // 验证数据长度（应该是4字节：固件大小+校验和）
+    if (data_len != CMD_SYSTEM_UPGRADE_DATA_LEN) {
+        error_code = ERR_INVALID_LENGTH;
+    } else {
+        uint16_t firmware_size = (data[0] << 8) | data[1];     // 固件总大小
+        uint16_t firmware_checksum = (data[2] << 8) | data[3]; // 固件校验和
+
+        // 验证固件大小
+        if (firmware_size == 0 || firmware_size > APP_SIZE) {
+            error_code = ERR_FILE_TOO_LARGE;
+        } else {
+            // 初始化升级状态
+            upgrade_state.firmware_size = firmware_size;
+            upgrade_state.firmware_checksum = firmware_checksum;
+            upgrade_state.current_packet = 0;
+            upgrade_state.received_size = 0;
+            upgrade_state.upgrade_active = 1;
+            upgrade_state.upgrade_valid = UPGRADE_VALID_FLAG;
+
+            // 发送响应
+            // usart_send_frame(CMD_SYSTEM_UPGRADE, &error_code, 1);
+
+            sys_delayms(10);
+
+            // __disable_irq();
+            // RCC_APB1PeriphClockCmd(RCC_APB1Periph_SYSCFG, ENABLE);
+            // SYSCFG_MemoryRemapConfig(SYSCFG_MemoryRemap_Flash);
+            // __enable_irq();
+
+            NVIC_SystemReset();
+            while(1);
+        }
+    }
+}
+
+/**
+ * @brief 处理usart命令
+ * @param frame_data 帧数据（指令+数据长度+数据）
+ * @param frame_len 帧数据长度
+ */
+void usart_handle_command(uint8_t *frame_data, uint16_t frame_len)
+{
+    if (frame_data == NULL || frame_len < 3) {
+        return;
+    }
+
+    uint8_t cmd = frame_data[0];
+    uint16_t data_len = (frame_data[1] << 8) | frame_data[2];
+    uint8_t *data = &frame_data[3];
+
+    // 验证数据长度一致性
+    if (frame_len != (3 + data_len)) {
+        uint8_t error_code = ERR_INVALID_LENGTH;
+        usart_send_frame(cmd, &error_code, 1);
+        return;
+    }
+
+    // APP程序只接收调流量和系统升级指令
+    switch (cmd) {
+        case CMD_FLOW_ADJUST:
+            handle_flow_adjust_cmd(data, data_len);
+            break;
+
+        case CMD_SYSTEM_UPGRADE:
+            handle_system_upgrade_cmd(data, data_len);
+            break;
+
+        default:
+            {
+                uint8_t error_code = ERR_INVALID_CMD;
+                usart_send_frame(cmd, &error_code, 1);
+            }
+            break;
+    }
+}
+
 void uart_cmd_process(void)
 {
     static uint32_t update_tick = 0;
@@ -202,38 +388,53 @@ void uart_cmd_process(void)
     if (uart_rx_flag == 1) {
         memcpy(uart_cmd, uart_rxbuffer, uart_rx_len);
 
-        // 去掉最后一个字节"\n"
-        if( uart_cmd[uart_rx_len-1] == '\n' ) {
-            uart_rx_len--;
+        // 检查最小帧长度: 帧头(1) + 指令(1) + 长度(2) + CRC(2) + 帧尾(2) = 8字节
+        if (uart_rx_len < PROTOCOL_MIN_FRAME_SIZE) {
+            uart_rx_flag = 0;
+            uart_rx_len = 0;
+            return;
         }
 
-        if ((uart_cmd[0] == 0xAA) && (uart_cmd[uart_rx_len-1] == 0x55)) {
-            // uint8_t checkSum = 0;
-            // for(int i=1; i<uart_rx_len-2; i++) {
-            //     checkSum ^= uart_cmd[i];
-            // }
-            // if (checkSum != uart_cmd[uart_rx_len-2]) {
-            //     printf("checkSum:%X, error\r\n", checkSum);
-            //     uart_rx_flag = 0;
-            //     return;
-            // }
+        // 检查帧头和帧尾
+        if ((uart_cmd[0] == PROTOCOL_FRAME_HEAD) &&
+            (uart_cmd[uart_rx_len-2] == PROTOCOL_FRAME_TAIL1) &&
+            (uart_cmd[uart_rx_len-1] == PROTOCOL_FRAME_TAIL2)) {
 
-            // magic_cool_parse_cmd((uint8_t*)uart_cmd);
+            // 解析协议: 帧头(1) + 指令(1) + 数据长度(2) + 数据(N) + CRC16(2) + 帧尾(2)
+            uint8_t cmd = uart_cmd[1];
+            uint16_t data_len = (uart_cmd[2] << 8) | uart_cmd[3];  // 大端序
 
-            // usart_transmit(uart_cmd, uart_rx_len);
+            // 验证数据长度是否合理
+            if (uart_rx_len != (PROTOCOL_MIN_FRAME_SIZE + data_len)) {  // 帧头+指令+长度+数据+CRC+帧尾
+                uart_rx_flag = 0;
+                uart_rx_len = 0;
+                uint8_t error_code = ERR_INVALID_LENGTH;
+                usart_send_frame(cmd, &error_code, 1);
+                return;
+            }
+
+            // 获取CRC16校验值 (在帧尾前2字节)
+            uint16_t received_crc = (uart_cmd[uart_rx_len-4] << 8) | uart_cmd[uart_rx_len-3];
+
+            // 计算CRC16: 对指令+数据长度+数据进行校验
+            uint8_t *crc_data = &uart_cmd[1];  // 从指令开始
+            uint16_t crc_len = 1 + 2 + data_len;  // 指令(1) + 长度(2) + 数据(data_len)
+            uint16_t calculated_crc = crc16(crc_data, crc_len);
+
+            if (calculated_crc == received_crc) {
+                // 校验正确，处理命令
+                // 传递给bootloader处理: 指令+数据长度+数据
+                usart_handle_command(&uart_cmd[1], crc_len);
+            } else {
+                // CRC校验错误，发送错误应答
+                uint8_t error_code = ERR_INVALID_CRC;
+                usart_send_frame(cmd, &error_code, 1);
+            }
         }
 
         uart_rx_flag = 0;
         uart_rx_len = 0;
     }
-    // else if( is_magic_cool_enable() ) {
-    //     if( (get_systick() - update_tick) > 500 ) {
-    //         update_tick = get_systick();
-    //         uint8_t uart_tx_len = magic_cool_update_uploadData(usb_send_buf, DATA_TYPE_UART);
-    //         // printf("usb state: %d\r\n", CDC_Transmit_FS(usb_send_buf, uart_tx_len));
-    //         usart_transmit(usb_send_buf, uart_tx_len);
-    //     }
-    // }
 }
 
 

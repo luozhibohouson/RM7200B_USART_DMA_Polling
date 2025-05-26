@@ -25,6 +25,8 @@
 
 #define MAGIC_COOL_DIFF                 1  // 是否是差分模式
 
+#define MAGIC_COOL_PID                  0  // 是否启用PID算法
+
 // 电压参数计算方式： 1. 通过最大值，最小值求Vpp，2. 通过极大值，极小值平均求VPP
 #define MAGIC_COOL_VPP_MAXMIN           0   // 通过最大值，最小值求Vpp
 #define MAGIC_COOL_VPP_AVG              1   // 通过极大值，极小值平均求VPP

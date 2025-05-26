@@ -34,7 +34,7 @@ typedef struct
     int16_t Kd;          /**< The derivative gain. */
 } arm_rm_pid_instance_q15;
 
-
+#if MAGIC_COOL_PID
 
 arm_rm_pid_instance_q15 pid_rmx_q15;
 arm_rm_pid_instance_f32 pid_rmx_f32;
@@ -115,10 +115,10 @@ int16_t ref_pid_q15(arm_rm_pid_instance_q15 * S, int16_t in)
     int32_t acc1;
 	int16_t out;
 	int16_t A1, A2;
-		
+
 	A1 = S->A1;
 	A2 = S->A2;
-    
+
 	/* acc = A0 * x[n]  */
 	acc = ((int32_t) S->A0) * in;
 
@@ -145,7 +145,7 @@ int16_t ref_pid_q15(arm_rm_pid_instance_q15 * S, int16_t in)
 	S->state[1] = S->state[0];
 	S->state[0] = in;
 	S->state[2] = out;
-    
+
 	/* return to application */
 	return (out);
 }
@@ -156,10 +156,10 @@ int16_t ref_pid_q15_delta(arm_rm_pid_instance_q15 * S, int16_t in)
 	int32_t acc;
 	int16_t out;
 	int16_t A1, A2;
-		
+
 	A1 = S->A1;
 	A2 = S->A2;
-    
+
 	/* acc = A0 * x[n]  */
 	acc = ((int32_t) S->A0) * in;
 
@@ -181,7 +181,7 @@ int16_t ref_pid_q15_delta(arm_rm_pid_instance_q15 * S, int16_t in)
 	/* Update state */
 	S->state[1] = S->state[0];
 	S->state[0] = in;
-    
+
 	/* return to application */
 	return (out);
 }
@@ -191,20 +191,20 @@ void pid_init(void)
 //    pid_rmx_f32.Kp = 0.2;
 //    pid_rmx_f32.Ki = 0.005;
 //    pid_rmx_f32.Kd = 0;
-//    
+//
 //    arm_rm_pid_init_f32(&pid_rmx_f32, 1);
     // VPP
-//    pid_rmx_q15.Kp = 3800; 
+//    pid_rmx_q15.Kp = 3800;
 //    pid_rmx_q15.Ki = 300;
 //    pid_rmx_q15.Kd = 0;
-    
+
     // dcdc
-    pid_rmx_q15.Kp = 5800; 
+    pid_rmx_q15.Kp = 5800;
     pid_rmx_q15.Ki = 300;
     pid_rmx_q15.Kd = 0;
-    
+
     arm_rm_pid_init_q15(&pid_rmx_q15, 1);
-//    printf("asdf--- p:%d, i:%d, d:%d, A0:%d, A1:%d, A2:%d\r\n", 
+//    printf("asdf--- p:%d, i:%d, d:%d, A0:%d, A1:%d, A2:%d\r\n",
 //        pid_rmx_q15.Kp, pid_rmx_q15.Ki, pid_rmx_q15.Kd,
 //        pid_rmx_q15.A0, pid_rmx_q15.A1, pid_rmx_q15.A2);
 }
@@ -224,3 +224,5 @@ int16_t rm_pid_delta(int16_t in)
 {
     return ref_pid_q15_delta(&pid_rmx_q15, in);
 }
+
+#endif

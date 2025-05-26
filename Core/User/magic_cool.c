@@ -32,9 +32,22 @@ float flow_target = VOL_TARGET;
 uint8_t update_cur;
 
 float voltage_gain = 11.8;
+#if MAGIC_COOL_IMPEDANCE_DEFAULT == MAGIC_COOL_IMPEDANCE_VPP || \
+    MAGIC_COOL_IMPEDANCE_DEFAULT == MAGIC_COOL_IMPEDANCE_RMS
 float impedance[64] = {0};
+#endif
+
+#if MAGIC_COOL_PHASE_DEFAULT == MAGIC_COOL_PHASE_FFT || \
+    MAGIC_COOL_PHASE_DEFAULT == MAGIC_COOL_PHASE_DOT || \
+    MAGIC_COOL_PHASE_DEFAULT == MAGIC_COOL_PHASE_CAPTURE
 float phase[64] = {0};
+#endif
+
+#if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW || \
+    MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH ||\
+    MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_ALL
 uint32_t freq_pwr[64] = {0};
+#endif
 
 /*******************************************************************/
 /*******************************************************************/
@@ -147,6 +160,7 @@ void magic_cool_set_limt(uint32_t freq_min, uint32_t freq_max)
     magic_cool_freqstop = freq_max;
 }
 
+#if !MAGIC_COOL_DIFF && MAGIC_COOL_PID
 // 电压闭环PWM占空比方式
 int magic_cool_voltage_closeloop_duty(uint32_t vol_target, uint32_t vol_err, uint32_t timeout)
 {
@@ -192,6 +206,7 @@ int magic_cool_voltage_closeloop_duty(uint32_t vol_target, uint32_t vol_err, uin
 
     return 0;
 }
+#endif
 
 // 电压闭环DCDC方式
 int magic_cool_voltage_closeloop_dcdc(uint32_t vol_target, uint32_t vol_err, uint32_t timeout)
@@ -325,6 +340,7 @@ int magic_cool_calc_impedance(uint32_t start_freq, uint32_t stop_freq, uint32_t 
         }
         zx = vpp / ipp;  // Z 的模
         printf("Vpp: %.5f Ipp: %.5f Z: %.5f ", vpp, ipp, zx);
+        impedance[index] = zx;
 #elif MAGIC_COOL_IMPEDANCE_DEFAULT == MAGIC_COOL_IMPEDANCE_RMS
         irms = 0.0;
         vrms = 0.0;
@@ -338,21 +354,23 @@ int magic_cool_calc_impedance(uint32_t start_freq, uint32_t stop_freq, uint32_t 
         }
         zx = vrms / irms;  // Z 的模
         printf("Vrms: %.5f Irms: %.5f Z: %.5f Dac: %.2f ", vrms, irms, zx, (float)(pwm1_duty_out*3.3/(HSI_VALUE/PWM1_FREQ)));
+        impedance[index] = zx;
 #else  // 其他方式，待定
 
 #endif
-        impedance[index] = zx;
 
 #if MAGIC_COOL_PHASE_DEFAULT == MAGIC_COOL_PHASE_FFT
         // ADC数据处理，FFT
         adc_output_conv(128);
         phasex = ProcessADCData(adc_voltage_data, adc_current_data);
         printf("fft phase: %.5f ", phasex);
+        phase[index] = phasex;
 #elif MAGIC_COOL_PHASE_DEFAULT == MAGIC_COOL_PHASE_DOT
         // ADC数据处理，点积
         adc_output_conv(128);
         phasex = get_phase_difference(adc_voltage_data, adc_current_data, 128);
         printf("dot phase: %.5f ", phasex);
+        phase[index] = phasex;
 #elif MAGIC_COOL_PHASE_DEFAULT == MAGIC_COOL_PHASE_CAPTURE
         // PWM 输入捕获
         adc_output_conv(128);
@@ -360,10 +378,10 @@ int magic_cool_calc_impedance(uint32_t start_freq, uint32_t stop_freq, uint32_t 
         sys_delayms(100);
         phasex = get_capture(8);
         printf("cap phase: %.5f ", phasex);
+        phase[index] = phasex;
 #else  // 其他方式，待定
         phasex = 0;
 #endif
-        phase[index] = phasex;
 
 #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_ALL
         // 低电流
@@ -1282,7 +1300,7 @@ void magic_cool_freq_track_current(void)
         freq0 = freq1 - freq_stepx;
 
         pwm_set_freq(freq1);  // 设置当前频率
-        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 2, 100);// 电压闭环
+        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
         sys_delayms(50);
         magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
         sys_delayms(200);
@@ -1307,7 +1325,7 @@ void magic_cool_freq_track_current(void)
         printf("freq1: %d pwr1:%d\r\n", freq1, pwr1);
 
         pwm_set_freq(freq0);  // 设置当前频率-20Hz
-        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 2, 100);// 电压闭环
+        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
         sys_delayms(50);
         magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
         sys_delayms(200);
@@ -1332,7 +1350,7 @@ void magic_cool_freq_track_current(void)
         printf("freq0: %d pwr0:%d\r\n", freq0, pwr0);
 
         pwm_set_freq(freq2);  // 设置当前频率+20Hz
-        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 2, 100);// 电压闭环
+        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
         sys_delayms(50);
         magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
         sys_delayms(200);
@@ -1577,7 +1595,9 @@ void magic_cool_config(void)
     adc_hv_input_conv(128);
 #endif
 
+#if MAGIC_COOL_PID
     pid_init();
+#endif
     magic_cool_set_adcfreq();
     magic_cool_set_limt(25000, 30000);
     pwm_set_config(26500, 50);  // KHz  50%占空比
@@ -1592,7 +1612,7 @@ void magic_cool_config(void)
 
 void magic_cool_run(void)
 {
-    magic_cool_mode ? led_on() : led_off();
+    // magic_cool_mode ? led_on() : led_off();
 //    int i;
 //    int vppf, ippf;
     if (magic_cool_mode == 0) {

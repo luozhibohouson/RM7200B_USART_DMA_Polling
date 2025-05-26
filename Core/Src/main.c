@@ -93,7 +93,7 @@ int main(void)
 #if  ENABLE_PRINTF
     USART_PrintfConfigure(1000000);
 #elif ENABLE_USART
-    USART_Configure(1000000);
+    USART_Configure(115200);
 #endif
 
     GPIO_Configure();
