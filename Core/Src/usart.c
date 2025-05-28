@@ -72,7 +72,7 @@ void USART_Configure(uint32_t Baudrate)
     USART_InitTypeDef USART_InitStruct;
     NVIC_InitTypeDef  NVIC_InitStruct;
 
-    sys_delayms(1000); // 禁用SWD接口
+    sys_delayms(500); // 禁用SWD接口
 
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART1, ENABLE);
 

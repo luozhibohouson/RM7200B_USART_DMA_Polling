@@ -41,6 +41,10 @@
 #include "tim.h"
 #include "controller.h"
 
+
+void hardware_init(void);
+void hardware_deinit(void);
+void deep_sleep(void);
 /**
   * @addtogroup MM32SPIN0230_LibSamples
   * @{
@@ -55,7 +59,36 @@
   * @addtogroup USART_DMA_Polling
   * @{
   */
+void EXTI_Configure(void)
+{
+    EXTI_InitTypeDef EXTI_InitStruct;
+    GPIO_InitTypeDef GPIO_InitStruct;
+    NVIC_InitTypeDef NVIC_InitStruct;
 
+    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
+
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_EXTI, ENABLE);
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_SYSCFG, ENABLE);
+
+    GPIO_StructInit(&GPIO_InitStruct);
+    GPIO_InitStruct.GPIO_Pin  = GPIO_Pin_8;
+    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IPU;
+    GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOA, EXTI_PinSource8);
+
+    EXTI_StructInit(&EXTI_InitStruct);
+    EXTI_InitStruct.EXTI_Line    = EXTI_Line8;
+    EXTI_InitStruct.EXTI_Mode    = EXTI_Mode_Interrupt;
+    EXTI_InitStruct.EXTI_Trigger = EXTI_Trigger_Rising_Falling;
+    EXTI_InitStruct.EXTI_LineCmd = ENABLE;
+    EXTI_Init(&EXTI_InitStruct);
+
+    NVIC_InitStruct.NVIC_IRQChannel = EXTI4_15_IRQn;
+    NVIC_InitStruct.NVIC_IRQChannelPriority = 0x01;
+    NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&NVIC_InitStruct);
+}
 /* Private typedef ****************************************************************************************************/
 
 /* Private define *****************************************************************************************************/
@@ -90,6 +123,26 @@ int main(void)
 {
     PLATFORM_Init();
 
+    hardware_init();
+
+    rm_magic_config();
+
+    while (1)
+    {
+        // key_scan();
+        rm_magic_run();
+#if ENABLE_USART
+        uart_cmd_process();
+#endif
+        deep_sleep();
+    }
+}
+
+/**
+  * @}
+  */
+void hardware_init(void)
+{
 #if  ENABLE_PRINTF
     USART_PrintfConfigure(1000000);
 #elif ENABLE_USART
@@ -101,23 +154,81 @@ int main(void)
     TIM13_Configure();
     TIM1_Configure();
     OPAMP_Configure();
-
-    rm_magic_config();
-
-    while (1)
-    {
-        // key_scan();
-        rm_magic_run();
-#if ENABLE_USART
-        uart_cmd_process();
-#endif
-    }
+    EXTI_Configure();
 }
 
-/**
-  * @}
-  */
+void hardware_deinit(void)
+{
 
+}
+
+extern volatile bool t1s_f;
+extern uint8_t  magic_cool_mode;
+void deep_sleep(void)
+{
+    static uint8_t sleep_time = 0;
+    if( t1s_f ) {
+        t1s_f = 0;
+        sleep_time++;
+    }
+    if( !magic_cool_mode ) {
+        if( sleep_time > 5 ) {
+
+            // 复位各个模块
+            RCC->APB1RSTR |= RCC_APB1Periph_OPA1 | \
+                            RCC_APB1Periph_OPA2 | \
+                            RCC_APB1Periph_ADC1 | \
+                            RCC_APB1Periph_USART1 | \
+                            RCC_APB1Periph_TIM13 | \
+                            RCC_APB1Periph_TIM1;
+
+            RCC->APB1RSTR &= ~(RCC_APB1Periph_OPA1 | \
+                            RCC_APB1Periph_OPA2 | \
+                            RCC_APB1Periph_ADC1 | \
+                            RCC_APB1Periph_USART1 | \
+                            RCC_APB1Periph_TIM13 | \
+                            RCC_APB1Periph_TIM1);
+
+            RCC->AHBRSTR |= RCC_AHBPeriph_DMA;
+            RCC->AHBRSTR &= ~(RCC_AHBPeriph_DMA);
+
+            // 配置GPIO为模拟输入
+            GPIO_InitTypeDef  GPIO_InitStruct;
+
+            GPIO_StructInit(&GPIO_InitStruct);
+            GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_3|GPIO_Pin_4|GPIO_Pin_5|GPIO_Pin_6|GPIO_Pin_7|GPIO_Pin_9|GPIO_Pin_13|GPIO_Pin_14|GPIO_Pin_15;
+            GPIO_InitStruct.GPIO_Speed  = GPIO_Speed_High;
+            GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AIN;
+            GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+            GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_0|GPIO_Pin_1|GPIO_Pin_2|GPIO_Pin_3|GPIO_Pin_4|GPIO_Pin_5|GPIO_Pin_6|GPIO_Pin_7;
+            GPIO_InitStruct.GPIO_Speed  = GPIO_Speed_High;
+            GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AIN;
+            GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+            GPIO_WriteBit(GPIOA, GPIO_Pin_15, Bit_SET);
+            GPIO_WriteBit(GPIOA, GPIO_Pin_9, Bit_RESET);
+            GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_15|GPIO_Pin_9;
+            GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_Out_PP;
+            GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+            __nop();__nop();__nop();
+            __nop();__nop();__nop();
+
+            SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
+            __WFI();
+
+            __nop();__nop();__nop();
+            __nop();__nop();__nop();
+
+            sleep_time = 0;
+
+            hardware_init();
+        }
+    } else {
+        sleep_time = 0;
+    }
+}
 /**
   * @}
   */

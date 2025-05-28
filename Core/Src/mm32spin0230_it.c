@@ -111,6 +111,7 @@ void PendSV_Handler(void)
   * @retval none
   *********************************************************************************************************************/
 volatile uint32_t sys_tick = 0;
+volatile bool t1s_f = 0;
 void SysTick_Handler(void)
 {
     if (0 != PLATFORM_DelayTick)
@@ -119,6 +120,10 @@ void SysTick_Handler(void)
     }
 
     sys_tick += 1;
+
+    if( sys_tick % 1000 == 0 ) {
+        t1s_f = 1;
+    }
 
     extern void key_scan();
     key_scan();
@@ -167,6 +172,20 @@ void USART1_IRQHandler(void)
     usart_callback();
 }
 
+
+/***********************************************************************************************************************
+  * @brief  This function handles EXTI4_15 Handler
+  * @note   none
+  * @param  none
+  * @retval none
+  *********************************************************************************************************************/
+void EXTI4_15_IRQHandler(void)
+{
+    if (RESET != EXTI_GetITStatus(EXTI_Line8))
+    {
+        EXTI_ClearITPendingBit(EXTI_Line8);
+    }
+}
 /**
   * @}
   */

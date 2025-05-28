@@ -52,7 +52,7 @@ void TIM13_Configure(void)
 
     TIM_Cmd(TIM13, ENABLE);
 
-    TIM_CtrlPWMOutputs(TIM13, ENABLE);
+    TIM_CtrlPWMOutputs(TIM13, DISABLE);
 }
 
 void tim13_set_duty(uint32_t duty)

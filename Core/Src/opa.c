@@ -26,14 +26,32 @@ void OPAMP_Configure(void)
 
     OPAMP_ModeConfig(OPAMP1, OPAMP_Mode_LowPower);
 
-    OPAMP_Cmd(OPAMP1, ENABLE);
+    OPAMP_Cmd(OPAMP1, DISABLE);
 
     /* OPA2 */
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_OPA2, ENABLE);
 
     OPAMP_ModeConfig(OPAMP2, OPAMP_Mode_LowPower);
 
+    OPAMP_Cmd(OPAMP2, DISABLE);
+}
+
+void OPA_Enable(void)
+{
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_OPA1, ENABLE);
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_OPA2, ENABLE);
+
+    OPAMP_Cmd(OPAMP1, ENABLE);
     OPAMP_Cmd(OPAMP2, ENABLE);
+}
+
+void OPA_Disable(void)
+{
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_OPA1, DISABLE);
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_OPA2, DISABLE);
+
+    OPAMP_Cmd(OPAMP1, DISABLE);
+    OPAMP_Cmd(OPAMP2, DISABLE);
 }
 
 
