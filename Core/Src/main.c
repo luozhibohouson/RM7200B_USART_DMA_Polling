@@ -59,7 +59,7 @@ typedef struct {
 } app_t;
 
 static app_t app_info;
-// 增加升级成功标志，防止烧录固件，导致bootloader无法启动
+// 增加升级成功标志，防止烧错固件，导致bootloader无法启动
 void app_upgrade_success(void)
 {
     flash_read_bytes(PARAM_START_ADDR, (uint8_t*)&app_info, sizeof(app_info));
