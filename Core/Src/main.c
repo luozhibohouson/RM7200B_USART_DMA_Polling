@@ -40,6 +40,7 @@
 #include "adc.h"
 #include "tim.h"
 #include "controller.h"
+#include "flash_ops.h"
 
 
 void hardware_init(void);
@@ -50,15 +51,29 @@ void deep_sleep(void);
   * @{
   */
 
-/**
-  * @addtogroup USART
-  * @{
-  */
+typedef struct {
+    uint16_t app_valid;
+    uint16_t app_success;
+    uint16_t app_size;
+    uint16_t app_checksum;
+} app_t;
 
-/**
-  * @addtogroup USART_DMA_Polling
-  * @{
-  */
+static app_t app_info;
+// 增加升级成功标志，防止烧录固件，导致bootloader无法启动
+void app_upgrade_success(void)
+{
+    flash_read_bytes(PARAM_START_ADDR, (uint8_t*)&app_info, sizeof(app_info));
+
+    if( app_info.app_valid == APP_VALID_FLAG && app_info.app_success == APP_SUCCESS_FLAG ) {
+        return;
+    }
+
+    app_info.app_success = APP_SUCCESS_FLAG;
+    flash_erase_page((uint16_t)(PARAM_START_ADDR / FLASH_PAGE_SIZE));
+    flash_write_halfword(PARAM_START_ADDR, (uint16_t*)&app_info, sizeof(app_info));
+}
+
+
 void EXTI_Configure(void)
 {
     EXTI_InitTypeDef EXTI_InitStruct;
@@ -121,6 +136,8 @@ uint32_t get_systick(void)
   *********************************************************************************************************************/
 int main(void)
 {
+    app_upgrade_success();
+
     PLATFORM_Init();
 
     hardware_init();

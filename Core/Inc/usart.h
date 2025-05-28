@@ -19,6 +19,11 @@
 #define CMD_PACKET_NUM_SIZE         2    // 包序号大小
 #define CMD_RESPONSE_MAX_DATA_LEN   8    // 响应数据最大长度
 
+/* 固件标志 */
+#define APP_VALID_FLAG              0xAA55
+#define APP_INVALID_FLAG            0xFFFF
+#define APP_SUCCESS_FLAG            0xCD12
+
 /* 协议常量 */
 #define PROTOCOL_FRAME_HEAD         0xBB
 #define PROTOCOL_FRAME_TAIL1        0x55
