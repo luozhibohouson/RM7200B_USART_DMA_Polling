@@ -72,14 +72,14 @@ typedef struct {
     uint16_t firmware_size;     // 固件总大小
     uint16_t firmware_checksum; // 固件校验和(16bit)
     uint16_t current_packet;    // 当前包序号
-    uint32_t received_size;     // 已接收大小
+    uint16_t received_size;     // 已接收大小
     uint32_t upgrade_valid;     // 升级有效标志
     uint8_t upgrade_active;     // 升级激活标志
 } upgrade_state_t;
 
 
 void USART_PrintfConfigure(uint32_t Baudrate);
-void USART_Configure(uint32_t Baudrate);
+void USART_Configure(uint32_t Baudrate, uint8_t delay_enable);
 void usart_callback(void);
 
 void VectorTable_Init(void);

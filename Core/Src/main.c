@@ -43,7 +43,7 @@
 #include "flash_ops.h"
 
 
-void hardware_init(void);
+void hardware_init(uint8_t delay_enable);
 void hardware_deinit(void);
 void deep_sleep(void);
 /**
@@ -140,7 +140,7 @@ int main(void)
 
     PLATFORM_Init();
 
-    hardware_init();
+    hardware_init(ENABLE);
 
     rm_magic_config();
 
@@ -158,12 +158,13 @@ int main(void)
 /**
   * @}
   */
-void hardware_init(void)
+void hardware_init(uint8_t delay_enable)
 {
 #if  ENABLE_PRINTF
     USART_PrintfConfigure(1000000);
 #elif ENABLE_USART
-    USART_Configure(115200);
+    // 从boot跳转，需要延时。从休眠唤醒不需要延时
+    USART_Configure(115200, delay_enable);
 #endif
 
     GPIO_Configure();
@@ -240,7 +241,7 @@ void deep_sleep(void)
 
             sleep_time = 0;
 
-            hardware_init();
+            hardware_init(DISABLE);
         }
     } else {
         sleep_time = 0;

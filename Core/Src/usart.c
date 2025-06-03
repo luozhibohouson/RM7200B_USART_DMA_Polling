@@ -6,8 +6,8 @@ uint32_t uart_rx_len = 0;
 uint8_t  uart_rxbuffer[30] = {0};
 uint8_t  uart_cmd[30] = {0};
 
-static uint32_t vector_table[48] __attribute__((at(0x20000000)));
-static upgrade_state_t upgrade_state __attribute__((at(0x200000C0)));
+static __IO uint32_t vector_table[48] __attribute__((at(0x20000000)));
+static __IO upgrade_state_t upgrade_state __attribute__((at(0x200000C0)));
 
 void USART_DMA_Configure(uint8_t *Buffer, uint8_t Length);
 /***********************************************************************************************************************
@@ -66,13 +66,15 @@ void USART_PrintfConfigure(uint32_t Baudrate)
     // USART_DMA_Configure(uart_rxbuffer, sizeof(uart_rxbuffer));
 }
 
-void USART_Configure(uint32_t Baudrate)
+void USART_Configure(uint32_t Baudrate, uint8_t delay_enable)
 {
     GPIO_InitTypeDef  GPIO_InitStruct;
     USART_InitTypeDef USART_InitStruct;
     NVIC_InitTypeDef  NVIC_InitStruct;
 
-    sys_delayms(500); // 禁用SWD接口
+    if( delay_enable != 0 ) {
+        sys_delayms(500); // 禁用SWD接口
+    }
 
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART1, ENABLE);
 
@@ -324,15 +326,11 @@ static void handle_system_upgrade_cmd(uint8_t *data, uint16_t data_len)
             upgrade_state.upgrade_active = 1;
             upgrade_state.upgrade_valid = UPGRADE_VALID_FLAG;
 
-            // 发送响应
-            // usart_send_frame(CMD_SYSTEM_UPGRADE, &error_code, 1);
+            for(uint16_t i=0xfff; i>0; i--) {
+                __nop();
+            }
 
-            sys_delayms(10);
-
-            // __disable_irq();
-            // RCC_APB1PeriphClockCmd(RCC_APB1Periph_SYSCFG, ENABLE);
-            // SYSCFG_MemoryRemapConfig(SYSCFG_MemoryRemap_Flash);
-            // __enable_irq();
+            __disable_irq();
 
             NVIC_SystemReset();
             while(1);
