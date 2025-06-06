@@ -59,19 +59,19 @@ void GPIO_Configure(void)
 
 /* USER CODE BEGIN 2 */
 
-void led_on(void)
-{
-    GPIO_WriteBit(GPIOB, GPIO_Pin_5, Bit_SET);
-}
+// void led_on(void)
+// {
+//     GPIO_WriteBit(GPIOB, GPIO_Pin_5, Bit_SET);
+// }
 
-void led_off(void)
-{
-    GPIO_WriteBit(GPIOB, GPIO_Pin_5, Bit_RESET);
-}
+// void led_off(void)
+// {
+//     GPIO_WriteBit(GPIOB, GPIO_Pin_5, Bit_RESET);
+// }
 
-void led_toggle(void)
-{
-    // HAL_GPIO_TogglePin(GPIOB, GPIO_Pin_5);
-}
+// void led_toggle(void)
+// {
+//     // HAL_GPIO_TogglePin(GPIOB, GPIO_Pin_5);
+// }
 
 /* USER CODE END 2 */

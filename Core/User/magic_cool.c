@@ -25,7 +25,7 @@
 
 #define     KEY_VOL_CFG     1  // 按键设置电压
 
-#define     VOL_TARGET     50  // 流量目标
+#define     VOL_TARGET      40  // 流量目标
 
 /*****************************************************************/
 float flow_target = VOL_TARGET;
@@ -66,12 +66,12 @@ uint32_t magic_cool_key_count = 0;
 
 uint32_t magic_cool_pwr_max = 0;
 
-#define PWM1_MIN_POWER_DUTY         (HSI_VALUE/PWM1_FREQ*33/33)
-#define PWM1_DEFAULT_POWER_DUTY     (HSI_VALUE/PWM1_FREQ*25/33)
+#define PWM1_MIN_POWER_DUTY         ((HSI_VALUE/PWM1_FREQ*33/33)-1)
+#define PWM1_DEFAULT_POWER_DUTY     ((HSI_VALUE/PWM1_FREQ*25/33)-1)
 
 uint16_t pwm1_duty_out = PWM1_MIN_POWER_DUTY;
-uint16_t pwm1_duty_limit_min = HSI_VALUE/PWM1_FREQ*2/33; //最小为0.2V - 145
-uint16_t pwm1_duty_limit_max = HSI_VALUE/PWM1_FREQ*33/33; //最大为3.0V - 1090
+uint16_t pwm1_duty_limit_min = ((HSI_VALUE/PWM1_FREQ*2/33)-1); //最小为0.2V - 145
+uint16_t pwm1_duty_limit_max = ((HSI_VALUE/PWM1_FREQ*33/33)-1); //最大为3.0V - 1090
 
 float magic_cool_ph_proxth = 0;
 
@@ -82,8 +82,14 @@ uint8_t mc_key1_last = 1, mc_key2_last = 1, mc_key3_last = 1;  // KEY
 /*******************************************************************/
 /*******************************************************************/
 /*******************************************************************/
-
-
+static void dcdc_power_control(uint8_t enable)
+{
+    if( enable ) {
+        GPIO_WriteBit(GPIOB, GPIO_Pin_5, Bit_SET);
+    } else {
+        GPIO_WriteBit(GPIOB, GPIO_Pin_5, Bit_RESET);
+    }
+}
 void magic_cool_key_scan(uint8_t key1, uint8_t key2, uint8_t key3)
 {
     int freq_stepx = 20;
@@ -403,14 +409,14 @@ int magic_cool_calc_impedance(uint32_t start_freq, uint32_t stop_freq, uint32_t 
         hvol = adc_dc_hvol_avg;
         lcur = adc_dc_lcur_avg;
         freq_pwr[index] = hvol * lcur;
-        printf("hvol: %.2f lcur: %.2f pwr: %d ", hvol, lcur, freq_pwr[index]);
+        printf("hvol: %.2f lcur: %.2f pwr: %d dac: %.2f ", hvol, lcur, freq_pwr[index], (float)(pwm1_duty_out*3.3/(HSI_VALUE/PWM1_FREQ)));
 #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
         // 高电流
         adc_hv_input_conv(128);
         hvol = adc_dc_hvol_avg;
         hcur = adc_dc_hcur_avg;
         freq_pwr[index] = hvol * hcur;
-        printf("hvol: %.2f hcur: %.2f ", hvol, hcur);
+        printf("hvol: %.2f hcur: %.2f pwr: %d dac: %.2f ", hvol, hcur, freq_pwr[index], (float)(pwm1_duty_out*3.3/(HSI_VALUE/PWM1_FREQ)));
 #endif
 
 #if USE_AIR_FLOWMETER
@@ -451,11 +457,15 @@ void magic_cool_run_impedance(void)
 
     OPA_Enable();
     // 从低频率开始，防止过冲烧坏气泵
-    pwm_set_freq(magic_cool_freqstart);
     // 恢复默认dac
-    pwm1_duty_out = PWM1_DEFAULT_POWER_DUTY;
-    pwm_enable(ENABLE);
+    pwm1_duty_out = PWM1_MIN_POWER_DUTY;
     set_power_enable(ENABLE);
+    sys_delayms(2);
+    dcdc_power_control(ENABLE);
+    sys_delayms(2);
+    // 升压稳定后再开H桥PWM
+    pwm_set_freq(magic_cool_freqstart);
+    pwm_enable(ENABLE);
     // sys_delayms(100);
     // adc_output_conv(128);
 
@@ -1204,7 +1214,7 @@ void magic_cool_freq_track_current(void)
     int pwr0, pwr1, pwr2;
     int pwrx = 0;
     uint32_t dc_vol, dc_cur;
-    int pwr_proxth = 11308; //10mW
+    int pwr_proxth = 11308; //(10mW / 0.0008843037)
 
     static uint8_t cnt0 = 0, cnt1 = 0, cnt2 = 0;
     static uint32_t scan_tick = 0;
@@ -1212,15 +1222,16 @@ void magic_cool_freq_track_current(void)
     uint32_t pwr_arr[32] = {0};
 
 #if 0
+    static uint8_t scan_cnt = 0;
     #define FREQ_STEP 50
     //频率范围
-    #define FREQ_RANGE 200
+    #define FREQ_RANGE 500
 
-    // if (get_systick() > scan_tick) {
-    if( /*get_systick() > scan_tick || */(uint16_t)flow_target != magic_cool_target_vol ) {
-        magic_cool_target_vol = (uint16_t)flow_target;
+    if (get_systick() > scan_tick) {
+    // if( /*get_systick() > scan_tick || */(uint16_t)flow_target != magic_cool_target_vol ) {
+        // magic_cool_target_vol = (uint16_t)flow_target;
         printf("test_vol: %d\r\n", magic_cool_target_vol);
-        scan_tick = get_systick() + 120000;    // 2min = 2 * 60s * 1000
+        scan_tick = get_systick() + 10000;    // 2min = 2 * 60s * 1000
         freq1 = pwm_get_freq();
         j = 0;
         for (temp = freq1 - FREQ_RANGE; temp < (freq1 + FREQ_RANGE); temp += FREQ_STEP) {  // ±500Hz 扫频
@@ -1265,6 +1276,8 @@ void magic_cool_freq_track_current(void)
         pwm_set_freq(temp);  // 设置当前频率
         magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
         sys_delayms(200);
+
+        printf("scan_cnt: %d\r\n", ++scan_cnt);
     }
 #endif
 
@@ -1476,6 +1489,27 @@ void magic_cool_set_target_vol(uint32_t vol)
     magic_cool_target_vol = vol;
 }
 
+
+// FIXME: 待测试指令效果
+// 串口发送指令调整流量 -> 调整电压
+void magic_cool_set_target_vol_by_flow(uint8_t direction, uint8_t flow_level)
+{
+    float voltage_step = 2.5 * flow_level;
+    uint32_t target_vol;
+    if( direction == 0 ) {
+        target_vol = magic_cool_target_vol - (uint32_t)voltage_step;
+    } else {
+        target_vol = magic_cool_target_vol + (uint32_t)voltage_step;
+    }
+    //TODO: 限制电压范围
+    if( target_vol > 60 ) {
+        target_vol = 60;
+    } else if( target_vol < 30 ) {
+        target_vol = 30;
+    }
+    magic_cool_set_target_vol(target_vol);
+}
+
 void magic_cool_config_vol(uint32_t opt)
 {
     if (opt == 1) {
@@ -1601,12 +1635,12 @@ void magic_cool_config(void)
     pid_init();
 #endif
     magic_cool_set_adcfreq();
-    magic_cool_set_limt(25000, 25500);
+    magic_cool_set_limt(25000, 30000);
     pwm_set_config(25000, 50);  // KHz  50%占空比
     pwm_enable(DISABLE);
+    pwm1_set_duty(pwm1_duty_out);  // 设置DAC输出DCDC
     set_power_enable(DISABLE);
     magic_cool_set_target_vol(VOL_TARGET);   // 设置运行电压
-    pwm1_set_duty(pwm1_duty_out);  // 设置DAC输出DCDC
     // set_dac_output(2, 1024);  // cur offset
     magic_cool_mode = 0;
 }
@@ -1614,7 +1648,6 @@ void magic_cool_config(void)
 
 void magic_cool_run(void)
 {
-    // magic_cool_mode ? led_on() : led_off();
 //    int i;
 //    int vppf, ippf;
     if (magic_cool_mode == 0) {
@@ -1650,6 +1683,7 @@ void magic_cool_run(void)
             pwm_enable(DISABLE);
             set_power_enable(DISABLE);
             OPA_Disable();
+            dcdc_power_control(DISABLE);
         #endif
         return;
     } else if (magic_cool_mode == 1) {  // 校准,阻抗谱

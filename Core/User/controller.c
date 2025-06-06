@@ -38,37 +38,37 @@ uint16_t vol_min1 = 0;
 // 按下
 void key1_down_handle(void)
 {
-    led_on();
+    // led_on();
 }
 
 // 抬起
 void key1_up_handle(void)
 {
-    led_off();
+    // led_off();
 }
 
 // 按下
 void key2_down_handle(void)
 {
-    led_on();
+    // led_on();
 }
 
 // 抬起
 void key2_up_handle(void)
 {
-    led_off();
+    // led_off();
 }
 
 // 按下
 void key3_down_handle(void)
 {
-    led_on();
+    // led_on();
 }
 
 // 抬起
 void key3_up_handle(void)
 {
-    led_off();
+    // led_off();
 }
 
 /*******************************************************************/

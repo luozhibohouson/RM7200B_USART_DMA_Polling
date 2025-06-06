@@ -289,8 +289,9 @@ static void handle_flow_adjust_cmd(uint8_t *data, uint16_t data_len)
         if (direction > 1 || flow_level < 1 || flow_level > 5) {
             error_code = ERR_INVALID_PARAM;
         } else {
-            // FIXME: 实际的流量调节逻辑 -- bootloader不需要该指令
             error_code = ERR_SUCCESS;
+            extern void magic_cool_set_target_vol_by_flow(uint8_t direction, uint8_t flow_level);
+            magic_cool_set_target_vol_by_flow(direction, flow_level);
         }
     }
 

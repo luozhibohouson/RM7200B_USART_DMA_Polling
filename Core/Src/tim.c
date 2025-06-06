@@ -34,7 +34,7 @@ void TIM13_Configure(void)
     TIM_OCStructInit(&TIM_OCInitStruct);
     TIM_OCInitStruct.TIM_OCMode       = TIM_OCMode_PWM1;
     TIM_OCInitStruct.TIM_OutputState  = TIM_OutputState_Enable;
-    TIM_OCInitStruct.TIM_Pulse        = (TimerPeriod*60/100);
+    TIM_OCInitStruct.TIM_Pulse        = TimerPeriod;
     TIM_OCInitStruct.TIM_OCPolarity   = TIM_OCPolarity_High;
     TIM_OCInitStruct.TIM_OCIdleState  = TIM_OCIdleState_Set;
 
@@ -50,9 +50,9 @@ void TIM13_Configure(void)
     GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AF_PP;
     GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-    TIM_Cmd(TIM13, ENABLE);
-
     TIM_CtrlPWMOutputs(TIM13, DISABLE);
+
+    TIM_Cmd(TIM13, ENABLE);
 }
 
 void tim13_set_duty(uint32_t duty)
@@ -134,7 +134,7 @@ void TIM1_Configure(void)
 
     TIM_Cmd(TIM1, ENABLE);
 
-    TIM_CtrlPWMOutputs(TIM1, ENABLE);
+    TIM_CtrlPWMOutputs(TIM1, DISABLE);
 
     TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Disable);
     TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Disable);
