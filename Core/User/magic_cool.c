@@ -20,6 +20,7 @@
 #include "rm_fft.h"
 #include "opa.h"
 
+//FIXME:DC升压芯片不飞线的情况能否保证启动时电压不过冲
 
 #if RM_MAGIC_COOL
 
@@ -66,12 +67,12 @@ uint32_t magic_cool_key_count = 0;
 
 uint32_t magic_cool_pwr_max = 0;
 
-#define PWM1_MIN_POWER_DUTY         ((HSI_VALUE/PWM1_FREQ*33/33)-1)
-#define PWM1_DEFAULT_POWER_DUTY     ((HSI_VALUE/PWM1_FREQ*25/33)-1)
+#define PWM1_MIN_POWER_DUTY         ((HSI_VALUE/PWM1_FREQ*33/33))
+#define PWM1_DEFAULT_POWER_DUTY     ((HSI_VALUE/PWM1_FREQ*25/33))
 
 uint16_t pwm1_duty_out = PWM1_MIN_POWER_DUTY;
-uint16_t pwm1_duty_limit_min = ((HSI_VALUE/PWM1_FREQ*2/33)-1); //最小为0.2V - 145
-uint16_t pwm1_duty_limit_max = ((HSI_VALUE/PWM1_FREQ*33/33)-1); //最大为3.0V - 1090
+uint16_t pwm1_duty_limit_min = ((HSI_VALUE/PWM1_FREQ*2/33)); //最小为0.2V - 145
+uint16_t pwm1_duty_limit_max = ((HSI_VALUE/PWM1_FREQ*33/33)); //最大为3.0V - 1090
 
 float magic_cool_ph_proxth = 0;
 
@@ -459,8 +460,9 @@ void magic_cool_run_impedance(void)
     // 从低频率开始，防止过冲烧坏气泵
     // 恢复默认dac
     pwm1_duty_out = PWM1_MIN_POWER_DUTY;
-    set_power_enable(ENABLE);
-    sys_delayms(2);
+    pwm1_set_duty(pwm1_duty_out);
+    // set_power_enable(ENABLE);
+    // sys_delayms(2);
     dcdc_power_control(ENABLE);
     sys_delayms(2);
     // 升压稳定后再开H桥PWM
@@ -539,8 +541,8 @@ void magic_cool_run_impedance(void)
     gold_freq = freq_min + phase_max_idx * 50;  // 相位最大值对应的频率，相位差最小值
     magic_cool_ph_proxth = phase_max - (phase_max - (phase_sum / cnt)) / 2.0; // // 取平均相位时间和最小相位的中间值作为相位阈值
 
-#elif MAGIC_COOL_TRACK_DEFAULT == MAGIC_COOL_TRACK_CURRENT  // TODO: 电流追频方法未测试，待定
-
+#elif MAGIC_COOL_TRACK_DEFAULT == MAGIC_COOL_TRACK_CURRENT
+    // FIXME: 可以来回频率进行震荡，形成最大流量（当前气泵特性）
     find_maxima_i(freq_pwr, len, &magic_cool_pwr_max, &pwr_max_idx);  // 找最大值
     freq_min = magic_cool_freqstart + 100 * pwr_max_idx - 250;
 //    freq_max = magic_cool_freqstart + 100 * pwr_max_idx + 250;
@@ -1638,8 +1640,9 @@ void magic_cool_config(void)
     magic_cool_set_limt(25000, 30000);
     pwm_set_config(25000, 50);  // KHz  50%占空比
     pwm_enable(DISABLE);
+    pwm1_duty_out = PWM1_MIN_POWER_DUTY;
     pwm1_set_duty(pwm1_duty_out);  // 设置DAC输出DCDC
-    set_power_enable(DISABLE);
+    // set_power_enable(ENABLE);
     magic_cool_set_target_vol(VOL_TARGET);   // 设置运行电压
     // set_dac_output(2, 1024);  // cur offset
     magic_cool_mode = 0;
@@ -1681,7 +1684,9 @@ void magic_cool_run(void)
         // }
         #if 1
             pwm_enable(DISABLE);
-            set_power_enable(DISABLE);
+            pwm1_duty_out = PWM1_MIN_POWER_DUTY;
+            pwm1_set_duty(pwm1_duty_out);  // 设置DAC输出DCDC
+            // set_power_enable(ENABLE);
             OPA_Disable();
             dcdc_power_control(DISABLE);
         #endif
