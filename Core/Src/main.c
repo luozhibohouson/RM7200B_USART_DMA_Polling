@@ -214,14 +214,14 @@ void deep_sleep(void)
             GPIO_InitTypeDef  GPIO_InitStruct;
 
             GPIO_StructInit(&GPIO_InitStruct);
-            GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_3|GPIO_Pin_4|GPIO_Pin_5|GPIO_Pin_6|GPIO_Pin_7|GPIO_Pin_9|GPIO_Pin_13|GPIO_Pin_14|GPIO_Pin_15;
+            GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_All;
             GPIO_InitStruct.GPIO_Speed  = GPIO_Speed_High;
-            GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AIN;
+            GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_Out_PP;
             GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-            GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_0|GPIO_Pin_1|GPIO_Pin_2|GPIO_Pin_3|GPIO_Pin_4|GPIO_Pin_5|GPIO_Pin_6|GPIO_Pin_7;
+            GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_All;
             GPIO_InitStruct.GPIO_Speed  = GPIO_Speed_High;
-            GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AIN;
+            GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_Out_PP;
             GPIO_Init(GPIOB, &GPIO_InitStruct);
 
             GPIO_WriteBit(GPIOA, GPIO_Pin_15, Bit_SET);
@@ -229,6 +229,8 @@ void deep_sleep(void)
             GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_15|GPIO_Pin_9;
             GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_Out_PP;
             GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+            EXTI_Configure();
 
             __nop();__nop();__nop();
             __nop();__nop();__nop();
