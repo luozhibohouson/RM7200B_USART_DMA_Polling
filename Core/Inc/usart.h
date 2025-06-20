@@ -3,7 +3,7 @@
 
 #include "main.h"
 
-#define ENABLE_USART   1
+#define ENABLE_USART   0
 
 /* Bootloader配置 */
 #define BOOTLOADER_START_ADDR       0x08000000
