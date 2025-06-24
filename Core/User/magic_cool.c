@@ -20,7 +20,7 @@
 #include "rm_fft.h"
 #include "opa.h"
 
-//TODO:DC升压芯片不飞线的情况能否保证启动时电压不过冲 -- 测试OK
+//TODO:DC升压芯片不飞线的情况能否保证启动时电压不过冲 -- 测试OK，保险起见还是增加DC升压芯片开关
 
 #if RM_MAGIC_COOL
 
@@ -100,6 +100,7 @@ static void dcdc_power_control(uint8_t enable)
         GPIO_WriteBit(GPIOB, GPIO_Pin_5, Bit_RESET);
     }
 }
+
 void magic_cool_key_scan(uint8_t key1, uint8_t key2, uint8_t key3)
 {
     int freq_stepx = 20;
@@ -120,11 +121,11 @@ void magic_cool_key_scan(uint8_t key1, uint8_t key2, uint8_t key3)
     if (key2 == 0x01) {
         if (magic_cool_mode == 0) {
             magic_cool_mode = 1;
-            flow_target = 50.0;
+            flow_target = VOL_TARGET;
         } else {
             flow_target -= 2.5; //变化2.5V，流量变化大概为0.1L/min
             if( flow_target < 30 ) {
-                flow_target = 55.0;
+                flow_target = VOL_TARGET;
             }
             update_cur = 1;
         }
@@ -554,7 +555,7 @@ void magic_cool_run_impedance(void)
     magic_cool_ph_proxth = phase_max - (phase_max - (phase_sum / cnt)) / 2.0; // // 取平均相位时间和最小相位的中间值作为相位阈值
 
 #elif MAGIC_COOL_TRACK_DEFAULT == MAGIC_COOL_TRACK_CURRENT
-    // FIXME: 可以来回频率进行震荡，形成最大流量（当前气泵特性）
+    // TODO: 可以来回频率进行震荡，形成最大流量（当前气泵特性）-- 测试无效，陶瓷发热需要一定时间，在该时间内来回震荡并不会缩短时间
     find_maxima_i(freq_pwr, len, &magic_cool_pwr_max, &pwr_max_idx);  // 找最大值
     freq_min = magic_cool_freqstart + 100 * pwr_max_idx - 250;
 //    freq_max = magic_cool_freqstart + 100 * pwr_max_idx + 250;
@@ -1516,8 +1517,8 @@ void magic_cool_set_target_vol_by_flow(uint8_t direction, uint8_t flow_level)
         target_vol = magic_cool_target_vol + (uint32_t)voltage_step;
     }
     //TODO: 限制电压范围
-    if( target_vol > 60 ) {
-        target_vol = 60;
+    if( target_vol > VOL_TARGET ) {
+        target_vol = VOL_TARGET;
     } else if( target_vol < 30 ) {
         target_vol = 30;
     }
