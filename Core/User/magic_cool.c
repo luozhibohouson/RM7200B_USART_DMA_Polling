@@ -26,14 +26,14 @@
 
 #define     KEY_VOL_CFG     1  // 按键设置电压
 
-#define     VOL_TARGET      40  // 流量目标
+#define     VOL_TARGET      50  // 流量目标
 
 #if 1 // 11*11 单/双泵频率范围 -- 电感使用2.2mH
-    #define     FREQ_MIN        25500
-    #define     FREQ_MAX        29500
+    #define     FREQ_MIN        25000
+    #define     FREQ_MAX        28500
 #else //12*14 双泵合并频率范围 -- 电感使用1.5mH
-    #define     FREQ_MIN        23600
-    #define     FREQ_MAX        24600
+    #define     FREQ_MIN        23000
+    #define     FREQ_MAX        24000
 #endif
 
 /*****************************************************************/
@@ -276,10 +276,10 @@ int magic_cool_voltage_closeloop_dcdc(uint32_t vol_target, uint32_t vol_err, uin
             ret = 1;
         }
 
-        if( pid_delta < 5 ) {
-            // 防止过度循环，加快系统运算时间
-            ret = 1;
-        }
+        // if( pid_delta <= 1  ) {
+        //     // 防止过度循环，加快系统运算时间
+        //     ret = 1;
+        // }
         // printf("pwm1_duty_out:%d, pid_delta:%d\r\n", pwm1_duty_out, pid_delta);
         pwm1_set_duty(pwm1_duty_out);
         sys_delayms(50);
@@ -565,6 +565,7 @@ void magic_cool_run_impedance(void)
         pwm_set_freq(freq_min + i * 50);
         magic_cool_voltage_closeloop(magic_cool_target_vol, 2, 100);  // 电压闭环调整，电压误差±2V
         for (cnt = 0; cnt < 10; cnt++) {
+            sys_delayms(10); // 错开一段时间
 #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
             // 低电流
             adc_hvli_input_conv(128);
@@ -579,8 +580,6 @@ void magic_cool_run_impedance(void)
             freq_pwr[i] += hvol * hcur;
 
 #endif
-            sys_delayms(10); // 错开一段时间
-
         }
         freq_pwr[i] = freq_pwr[i] / 10;
 
@@ -1188,6 +1187,7 @@ void magic_cool_freq_track_current(void)
             dc_vol = adc_dc_hvol_avg;
             dc_cur = adc_dc_hcur_avg;
 #else  // 其他方式，待定
+
 #endif
             pwr2 += dc_vol * dc_cur;
         }
@@ -1217,6 +1217,35 @@ void magic_cool_freq_track_current(void)
 }
 
 #else
+uint32_t get_current_pwr(int freq, uint8_t n)
+{
+    uint32_t pwr;
+
+    pwm_set_freq(freq);  // 设置当前频率
+    // magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
+    // sys_delayms(50);
+    magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
+    sys_delayms(200);
+    pwr = 0;
+    for (uint8_t j = 0; j < n; j++) {
+        sys_delayms(10);
+        // ADC采样，同时采样电压电流
+#if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW  // 直流高压输入电压,低端电流
+        adc_hvli_input_conv(128);
+        pwr += (uint32_t)(adc_dc_hvol_avg * adc_dc_lcur_avg);
+#elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH  // 直流高压输入电压,高端电流
+        adc_hv_input_conv(128);
+        pwr += (uint32_t)(adc_dc_hvol_avg * adc_dc_hcur_avg);
+#else  // 其他方式，待定
+
+#endif
+
+    }
+    pwr = pwr / n;
+
+    return pwr;
+}
+
 // 动态更新最大值方式
 void magic_cool_freq_track_current(void)
 {
@@ -1224,77 +1253,16 @@ void magic_cool_freq_track_current(void)
     int freq0,freq1,freq2;
     int i,j;
     int n = 5;
-    int loop_time = 6;
+    int loop_time = 4;
     int freq_stepx = 20;
     int pwr0, pwr1, pwr2;
-    int pwrx = 0;
+    uint32_t pwrx = 0;
     uint32_t dc_vol, dc_cur;
-    int pwr_proxth = 11308; //(10mW / 0.0008843037)
+    int pwr_proxth = 9000; //8mW // 11308; //(10mW / 0.0008843037)
 
     static uint8_t cnt0 = 0, cnt1 = 0, cnt2 = 0;
     static uint32_t scan_tick = 0;
-    uint32_t index = 0;
-    uint32_t pwr_arr[32] = {0};
-
-#if 0
-    static uint8_t scan_cnt = 0;
-    #define FREQ_STEP 50
-    //频率范围
-    #define FREQ_RANGE 500
-
-    if (get_systick() > scan_tick) {
-    // if( /*get_systick() > scan_tick || */(uint16_t)flow_target != magic_cool_target_vol ) {
-        // magic_cool_target_vol = (uint16_t)flow_target;
-        printf("test_vol: %d\r\n", magic_cool_target_vol);
-        scan_tick = get_systick() + 10000;    // 2min = 2 * 60s * 1000
-            freq1 = pwm_get_freq();
-            j = 0;
-            for (temp = freq1 - FREQ_RANGE; temp < (freq1 + FREQ_RANGE); temp += FREQ_STEP) {  // ±500Hz 扫频
-                pwm_set_freq(temp);  // 设置当前频率
-                magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
-                sys_delayms(200);
-                for (i = 0; i < n; i++) {
-                    sys_delayms(50);
-                    // ADC采样，同时采样电压电流
-    #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW  // 直流高压输入电压,低端电流
-                    adc_hvli_input_conv(128);
-                    dc_vol = adc_dc_hvol_avg;
-                    dc_cur = adc_dc_lcur_avg;
-    #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH  // 直流高压输入电压,高端电流
-                    adc_hv_input_conv(128);
-                    dc_vol = adc_dc_hvol_avg;
-                    dc_cur = adc_dc_hcur_avg;
-    #else  // 其他方式，待定
-
-    #endif
-                    pwrx += dc_vol * dc_cur;
-                }
-                pwrx = pwrx / n;
-                pwr_arr[j++] = pwrx;
-                printf("--scan freq:%d pwr:%d\r\n", temp, pwrx);
-
-                if( !magic_cool_mode ) {
-                    return;
-                }
-            }
-
-
-            magic_cool_pwr_max = pwr_arr[0];
-            for (i = 0; i < j; i++) {
-                if (magic_cool_pwr_max < pwr_arr[i]) {
-                    magic_cool_pwr_max = pwr_arr[i];
-                    temp = i;
-                }
-            }
-            temp = freq1 - FREQ_RANGE + temp * FREQ_STEP;
-            printf("--scan max freq:%d pwr:%d\r\n", temp, magic_cool_pwr_max);
-            pwm_set_freq(temp);  // 设置当前频率
-            magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
-            sys_delayms(200);
-
-        printf("scan_cnt: %d\r\n", ++scan_cnt);
-    }
-#endif
+    uint32_t pwr_arr[15] = {0};
 
     for (i = 0; i < n; i++) {
         sys_delayms(10);
@@ -1313,14 +1281,123 @@ void magic_cool_freq_track_current(void)
         pwrx += dc_vol * dc_cur;
     }
     pwrx = pwrx / n;
-    freq0 = pwm_get_freq();
-    printf("freq: %d pwr:%d\r\n", freq0, pwrx);
+    printf("freq: %d pwr:%d\r\n", pwm_get_freq(), pwrx);
 
-    printf("absx: %d\r\n", abs_i(magic_cool_pwr_max - pwrx));
-    if (abs_i(magic_cool_pwr_max - pwrx) < pwr_proxth) {
+    temp = abs_i(magic_cool_pwr_max - pwrx);
+    printf("absx: %d\r\n", temp);
+    if (temp < pwr_proxth) {
         return;
+    } else if( temp > pwr_proxth*5 ) { //40mW 重新扫描 -- 根据气泵总功率大小调整倍数
+    #if 1
+        // static uint8_t scan_cnt = 0;
+        #define FREQ_STEP   50
+        #define FREQ_RANGE  200
+
+        // if (get_systick() > scan_tick) {
+        // if( /*get_systick() > scan_tick || */(uint16_t)flow_target != magic_cool_target_vol ) {
+            // magic_cool_target_vol = (uint16_t)flow_target;
+            // printf("test_vol: %d\r\n", magic_cool_target_vol);
+            // scan_tick = get_systick() + 10000;    // 2min = 2 * 60s * 1000
+            freq1 = pwm_get_freq();
+            j = 0;
+            pwrx = 0;
+            for (temp = freq1 - FREQ_RANGE; temp <= (freq1 + FREQ_RANGE); temp += FREQ_STEP) {  // ±500Hz 扫频
+                pwm_set_freq(temp);  // 设置当前频率
+                magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
+                sys_delayms(200);
+                for (i = 0; i < n; i++) {
+                    sys_delayms(10);
+                    // ADC采样，同时采样电压电流
+    #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW  // 直流高压输入电压,低端电流
+                    adc_hvli_input_conv(128);
+                    dc_vol = adc_dc_hvol_avg;
+                    dc_cur = adc_dc_lcur_avg;
+    #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH  // 直流高压输入电压,高端电流
+                    adc_hv_input_conv(128);
+                    dc_vol = adc_dc_hvol_avg;
+                    dc_cur = adc_dc_hcur_avg;
+    #else  // 其他方式，待定
+
+    #endif
+                    pwrx += dc_vol * dc_cur;
+                }
+                pwrx = pwrx / n;
+                pwr_arr[j++] = pwrx;
+                printf("--scan freq:%d pwr:%d\r\n", temp, pwrx);
+                pwrx = 0;
+
+                if( !magic_cool_mode ) {
+                    return;
+                }
+            }
+        #if 0
+            magic_cool_pwr_max = pwr_arr[0];
+            temp = 0;  // 初始化temp为0，对应pwr_arr[0]的索引
+            for (i = 0; i < j; i++) {
+                if (magic_cool_pwr_max < pwr_arr[i]) {
+                    magic_cool_pwr_max = pwr_arr[i];
+                    temp = i;
+                }
+            }
+        #else
+            // 查找最大值和第二大值
+            uint32_t pwr_max, pwr_second_max;
+            uint8_t pwr_max_index, pwr_second_max_index, current_index;
+
+            // 用前两个元素初始化
+            if (pwr_arr[0] >= pwr_arr[1]) {
+                pwr_max = pwr_arr[0];
+                pwr_second_max = pwr_arr[1];
+                pwr_max_index = 0;
+                pwr_second_max_index = 1;
+            } else {
+                pwr_max = pwr_arr[1];
+                pwr_second_max = pwr_arr[0];
+                pwr_max_index = 1;
+                pwr_second_max_index = 0;
+            }
+
+            temp = 0;
+            // 从第三个元素开始比较
+            for (i = 2; i < j; i++) {
+                if (pwr_arr[i] > pwr_max) {
+                    // 新的最大值，原最大值变成第二大
+                    pwr_second_max = pwr_max;
+                    pwr_max = pwr_arr[i];
+                    pwr_max_index = i;
+                    temp = i;
+                } else if (pwr_arr[i] > pwr_second_max) {
+                    // 新的第二大值
+                    pwr_second_max = pwr_arr[i];
+                    pwr_second_max_index = i;
+                }
+            }
+
+            current_index = FREQ_RANGE / FREQ_STEP + 1;
+            // 使用最大功率值
+            if( abs_i(pwr_max_index - current_index) > abs_i(pwr_second_max_index - current_index) ) {
+                magic_cool_pwr_max = pwr_second_max;
+                temp = pwr_second_max_index;
+            } else {
+                magic_cool_pwr_max = pwr_max;
+            }
+
+            printf("pwr_max:%d, pwr_second_max:%d, \r\n", pwr_max, pwr_second_max);
+
+        #endif
+
+            temp = freq1 - FREQ_RANGE + temp * FREQ_STEP;
+            printf("--scan max freq:%d pwr:%d\r\n", temp, magic_cool_pwr_max);
+            pwm_set_freq(temp);  // 设置当前频率
+            magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
+            // sys_delayms(200);
+
+            return;
+        // }
+    #endif
     }
 
+    float vpp_tmp = 0.0;
     for (i = 0; i < loop_time; i++) {
         // 获取当前频率
         freq1 = pwm_get_freq();
@@ -1329,85 +1406,21 @@ void magic_cool_freq_track_current(void)
         // 获取当前频率-20Hz频率
         freq0 = freq1 - freq_stepx;
 
-        pwm_set_freq(freq1);  // 设置当前频率
-        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
-        sys_delayms(50);
-        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
-        sys_delayms(200);
-        pwr1 = 0;
-        for (j = 0; j < n; j++) {
-            sys_delayms(10);
-            // ADC采样，同时采样电压电流
-#if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW  // 直流高压输入电压,低端电流
-            adc_hvli_input_conv(128);
-            dc_vol = adc_dc_hvol_avg;
-            dc_cur = adc_dc_lcur_avg;
-#elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH  // 直流高压输入电压,高端电流
-            adc_hv_input_conv(128);
-            dc_vol = adc_dc_hvol_avg;
-            dc_cur = adc_dc_hcur_avg;
-#else  // 其他方式，待定
+        pwr1 = get_current_pwr(freq1, n);
+        printf("freq1: %d pwr1:%d vpp:%.2f dac:%.2f \r\n", freq1, pwr1, (float)(magic_cool_vpp/voltage_gain), (float)(pwm1_duty_out*3.3/(HSI_VALUE/PWM1_FREQ)));
 
-#endif
-            pwr1 += dc_vol * dc_cur;
-        }
-        pwr1 = pwr1 / n;
-        printf("freq1: %d pwr1:%d\r\n", freq1, pwr1);
+        pwr0 = get_current_pwr(freq0, n);
+        printf("freq0: %d pwr0:%d vpp:%.2f dac:%.2f \r\n", freq0, pwr0, (float)(magic_cool_vpp/voltage_gain), (float)(pwm1_duty_out*3.3/(HSI_VALUE/PWM1_FREQ)));
 
-        pwm_set_freq(freq0);  // 设置当前频率-20Hz
-        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
-        sys_delayms(50);
-        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
-        sys_delayms(200);
-        pwr0 = 0;
-        for (j = 0; j < n; j++) {
-            sys_delayms(10);
-            // ADC采样，同时采样电压电流
-#if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW  // 直流高压输入电压,低端电流
-            adc_hvli_input_conv(128);
-            dc_vol = adc_dc_hvol_avg;
-            dc_cur = adc_dc_lcur_avg;
-#elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH  // 直流高压输入电压,高端电流
-            adc_hv_input_conv(128);
-            dc_vol = adc_dc_hvol_avg;
-            dc_cur = adc_dc_hcur_avg;
-#else  // 其他方式，待定
-
-#endif
-            pwr0 += dc_vol * dc_cur;
-        }
-        pwr0 = pwr0 / n;
-        printf("freq0: %d pwr0:%d\r\n", freq0, pwr0);
-
-        pwm_set_freq(freq2);  // 设置当前频率+20Hz
-        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
-        sys_delayms(50);
-        magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
-        sys_delayms(200);
-        pwr2 = 0;
-        for (j = 0; j < n; j++) {
-            sys_delayms(10);
-            // ADC采样，同时采样电压电流
-#if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW  // 直流高压输入电压,低端电流
-            adc_hvli_input_conv(128);
-            dc_vol = adc_dc_hvol_avg;
-            dc_cur = adc_dc_lcur_avg;
-#elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH  // 直流高压输入电压,高端电流
-            adc_hv_input_conv(128);
-            dc_vol = adc_dc_hvol_avg;
-            dc_cur = adc_dc_hcur_avg;
-#else  // 其他方式，待定
-#endif
-            pwr2 += dc_vol * dc_cur;
-        }
-        pwr2 = pwr2 / n;
-        printf("freq2: %d pwr2:%d\r\n", freq2, pwr2);
+        pwr2 = get_current_pwr(freq2, n);
+        printf("freq2: %d pwr2:%d vpp:%.2f dac:%.2f \r\n", freq2, pwr2, (float)(magic_cool_vpp/voltage_gain), (float)(pwm1_duty_out*3.3/(HSI_VALUE/PWM1_FREQ)));
 
         if( !magic_cool_mode ) {
             return;
         }
 
-        if (((pwr0 - pwr1) > pwr_proxth) && ((pwr0 - pwr2) > pwr_proxth)) {
+        int tmp = pwr_proxth;
+        if (((pwr0 - pwr1) > tmp) && ((pwr0 - pwr2) > tmp)) {
             if( cnt0 == 0 ) {
                 cnt0++;
                 cnt1 = 0;
@@ -1416,16 +1429,24 @@ void magic_cool_freq_track_current(void)
             } else {
                 cnt0 = 0;
                 pwm_set_freq(freq0);
-                printf("set freq0:%d\r\n", freq0);
+                printf("set freq0:%d \r\n", freq0);
                 magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
+                if( pwr0 > magic_cool_pwr_max ) {
+                    magic_cool_pwr_max = pwr0;
+                    printf("pwr max:%d\r\n", magic_cool_pwr_max);
+                }
             }
             continue;
-        } else if (((pwr1 - pwr0) > pwr_proxth) && ((pwr1 - pwr2) > pwr_proxth)) {
+        } else if (((pwr1 - pwr0) > tmp) && ((pwr1 - pwr2) > tmp)) {
             pwm_set_freq(freq1);
-            printf("set freq1:%d\r\n", freq1);
+            printf("set freq1:%d \r\n", freq1);
             magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
+            if( pwr1 > magic_cool_pwr_max ) {
+                magic_cool_pwr_max = pwr1;
+                printf("pwr max:%d\r\n", magic_cool_pwr_max);
+            }
             break;
-        } else if (((pwr2 - pwr0) > pwr_proxth) && ((pwr2 - pwr1) > pwr_proxth)) {
+        } else if (((pwr2 - pwr0) > tmp) && ((pwr2 - pwr1) > tmp)) {
             if( cnt2 == 0 ) {
                 cnt2++;
                 cnt0 = 0;
@@ -1434,8 +1455,12 @@ void magic_cool_freq_track_current(void)
             } else {
                 cnt2 = 0;
                 pwm_set_freq(freq2);
-                printf("set freq2:%d\r\n", freq2);
+                printf("set freq2:%d \r\n", freq2);
                 magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
+                if( pwr2 > magic_cool_pwr_max ) {
+                    magic_cool_pwr_max = pwr2;
+                    printf("pwr max:%d\r\n", magic_cool_pwr_max);
+                }
             }
             continue;
         } else {
@@ -1461,7 +1486,7 @@ void magic_cool_freq_track_current(void)
 void magic_cool_freq_track(void)
 {
     static int tick_ph = 50, tick_cur = 100, tick_vol = 1500, tick_imp = 50;
-    int feedback_tick = 15000;
+    int feedback_tick = 10000; // 15000;
 
 #if KEY_VOL_CFG
 
