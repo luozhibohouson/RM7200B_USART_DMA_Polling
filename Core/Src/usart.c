@@ -234,7 +234,7 @@ uint16_t crc16(uint8_t* buff, uint32_t len)
  */
 uint8_t usart_send_frame(uint8_t cmd, uint8_t *data, uint16_t data_len)
 {
-    uint8_t tx_buffer[16];  // 足够容纳任何响应帧：帧头(1)+指令(1)+长度(2)+数据(3)+CRC(2)+帧尾(2)=11字节
+    uint8_t tx_buffer[16];  // 足够容纳任何响应帧：帧头(1)+指令(1)+长度(1)+数据(3)+CRC(2)+帧尾(2)=11字节
     uint16_t frame_len = 0;
 
     // 检查数据长度，bootloader响应数据应该很小
@@ -242,10 +242,10 @@ uint8_t usart_send_frame(uint8_t cmd, uint8_t *data, uint16_t data_len)
         return 1;  // 响应数据过长
     }
 
-    // 构建协议帧: 帧头(1) + 指令(1) + 数据长度(2) + 数据(N) + CRC16(2) + 帧尾(2)
-    tx_buffer[frame_len++] = PROTOCOL_FRAME_HEAD;     // 帧头 0xBB
+    // 构建协议帧: 帧头(1) + 指令(1) + 数据长度(1) + 数据(N) + CRC16(2) + 帧尾(2)
+    tx_buffer[frame_len++] = PROTOCOL_FRAME_HEAD_REPLY;     // 帧头
     tx_buffer[frame_len++] = cmd;                     // 指令
-    tx_buffer[frame_len++] = (data_len >> 8) & 0xFF; // 数据长度高字节
+    // tx_buffer[frame_len++] = (data_len >> 8) & 0xFF; // 数据长度高字节
     tx_buffer[frame_len++] = data_len & 0xFF;         // 数据长度低字节
 
     // 添加数据
@@ -255,19 +255,51 @@ uint8_t usart_send_frame(uint8_t cmd, uint8_t *data, uint16_t data_len)
     }
 
     // 计算CRC16 (对指令+数据长度+数据进行校验)
-    uint16_t crc = crc16(&tx_buffer[1], 1 + 2 + data_len);
+    uint16_t crc = crc16(&tx_buffer[1], 1 + 1 + data_len);
     tx_buffer[frame_len++] = (crc >> 8) & 0xFF;      // CRC16高字节
     tx_buffer[frame_len++] = crc & 0xFF;             // CRC16低字节
 
     // 帧尾
-    tx_buffer[frame_len++] = PROTOCOL_FRAME_TAIL1;   // 帧尾 0x55
-    tx_buffer[frame_len++] = PROTOCOL_FRAME_TAIL2;   // 帧尾 0x0A
+    tx_buffer[frame_len++] = PROTOCOL_FRAME_TAIL1_REPLY;   // 帧尾
+    tx_buffer[frame_len++] = PROTOCOL_FRAME_TAIL2_REPLY;   // 帧尾
 
     // 发送数据
     usart_transmit(tx_buffer, frame_len);
 
     return 0;
 }
+
+/**
+ * @brief 处理获取版本指令
+ * @param data 数据指针
+ * @param data_len 数据长度
+ */
+static void handle_get_version_cmd(uint8_t *data, uint16_t data_len)
+{
+    uint8_t response_data[4] = {0};
+    uint8_t error_code = ERR_SUCCESS;
+
+    // 验证数据长度
+    if (data_len != CMD_GET_VERSION_DATA_LEN) {
+        error_code = ERR_INVALID_LENGTH;
+    } else {
+        error_code = ERR_SUCCESS;
+
+        extern char* get_app_version(void);
+        extern char* get_hardware_version(void);
+
+        char* app_version = get_app_version();
+        char* hardware_version = get_hardware_version();
+        response_data[0] = hardware_version[0]; // 硬件版本只有1个字节
+        response_data[1] = app_version[0];
+        response_data[2] = app_version[1];
+        response_data[3] = error_code;
+    }
+
+    // 发送响应
+    usart_send_frame(CMD_GET_VERSION, response_data, sizeof(response_data));
+}
+
 
 /**
  * @brief 处理调流量指令
@@ -278,25 +310,57 @@ static void handle_flow_adjust_cmd(uint8_t *data, uint16_t data_len)
 {
     uint8_t error_code = ERR_SUCCESS;
 
-    // 验证数据长度（应该是2字节：方向+流量）
+    // 验证数据长度（应该是1字节：流量等级）
     if (data_len != CMD_FLOW_ADJUST_DATA_LEN) {
         error_code = ERR_INVALID_LENGTH;
     } else {
-        uint8_t direction = data[0];  // 0:减少, 1:增加
-        uint8_t flow_level = data[1]; // 1~5
+        uint8_t flow_level = data[0];
 
         // 验证参数
-        if (direction > 1 || flow_level < 1 || flow_level > 5) {
+        if (flow_level > FLOW_LEVEL_100_PERCENT || flow_level < FLOW_LEVEL_50_PERCENT) {
             error_code = ERR_INVALID_PARAM;
         } else {
             error_code = ERR_SUCCESS;
-            extern void magic_cool_set_target_vol_by_flow(uint8_t direction, uint8_t flow_level);
-            magic_cool_set_target_vol_by_flow(direction, flow_level);
+            extern void magic_cool_set_target_vol_by_flow(uint8_t flow_level);
+            magic_cool_set_target_vol_by_flow(flow_level);
         }
     }
 
     // 发送响应
     usart_send_frame(CMD_FLOW_ADJUST, &error_code, 1);
+}
+
+/**
+ * @brief 处理深睡眠指令
+ * @param data 数据指针
+ * @param data_len 数据长度
+ */
+static void handle_deep_sleep_cmd(uint8_t *data, uint16_t data_len)
+{
+    uint8_t error_code = ERR_SUCCESS;
+    uint8_t response_data[2] = {0};
+    extern uint8_t deep_sleep_flag;
+
+    // 验证数据长度（应该是2字节：方向+流量）
+    if (data_len != CMD_DEEP_SLEEP_DATA_LEN) {
+        error_code = ERR_INVALID_LENGTH;
+    } else {
+        deep_sleep_flag = data[0];
+
+        if( deep_sleep_flag != DEEP_SLEEP_FLAG_SLEEP ) {
+            error_code = ERR_INVALID_PARAM;
+        } else {
+            error_code = ERR_SUCCESS;
+            extern uint8_t magic_cool_mode;
+            magic_cool_mode = 0;
+        }
+    }
+
+    response_data[0] = deep_sleep_flag;
+    response_data[1] = error_code;
+
+    // 发送响应
+    usart_send_frame(CMD_DEEP_SLEEP, response_data, sizeof(response_data));
 }
 
 /**
@@ -313,7 +377,7 @@ static void handle_system_upgrade_cmd(uint8_t *data, uint16_t data_len)
         error_code = ERR_INVALID_LENGTH;
     } else {
         uint16_t firmware_size = (data[0] << 8) | data[1];     // 固件总大小
-        uint16_t firmware_checksum = (data[2] << 8) | data[3]; // 固件校验和
+        uint16_t firmware_crc16 = (data[2] << 8) | data[3]; // 固件校验和
 
         // 验证固件大小
         if (firmware_size == 0 || firmware_size > APP_SIZE) {
@@ -321,7 +385,7 @@ static void handle_system_upgrade_cmd(uint8_t *data, uint16_t data_len)
         } else {
             // 初始化升级状态
             upgrade_state.firmware_size = firmware_size;
-            upgrade_state.firmware_checksum = firmware_checksum;
+            upgrade_state.firmware_crc16 = firmware_crc16;
             upgrade_state.current_packet = 0;
             upgrade_state.received_size = 0;
             upgrade_state.upgrade_active = 1;
@@ -355,7 +419,7 @@ void usart_handle_command(uint8_t *frame_data, uint16_t frame_len)
     uint8_t *data = &frame_data[3];
 
     // 验证数据长度一致性
-    if (frame_len != (3 + data_len)) {
+    if (frame_len != (PROTOCOL_FRAME_HEAD_TAIL_SIZE + data_len)) {
         uint8_t error_code = ERR_INVALID_LENGTH;
         usart_send_frame(cmd, &error_code, 1);
         return;
@@ -363,8 +427,16 @@ void usart_handle_command(uint8_t *frame_data, uint16_t frame_len)
 
     // APP程序只接收调流量和系统升级指令
     switch (cmd) {
+        case CMD_GET_VERSION:
+            handle_get_version_cmd(data, data_len);
+            break;
+
         case CMD_FLOW_ADJUST:
             handle_flow_adjust_cmd(data, data_len);
+            break;
+
+        case CMD_DEEP_SLEEP:
+            handle_deep_sleep_cmd(data, data_len);
             break;
 
         case CMD_SYSTEM_UPGRADE:

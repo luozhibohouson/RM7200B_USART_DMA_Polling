@@ -112,6 +112,8 @@ void PendSV_Handler(void)
   *********************************************************************************************************************/
 volatile uint32_t sys_tick = 0;
 volatile bool t1s_f = 0;
+volatile bool t10ms_f = 0;
+extern uint8_t deep_sleep_flag;
 void SysTick_Handler(void)
 {
     if (0 != PLATFORM_DelayTick)
@@ -123,6 +125,12 @@ void SysTick_Handler(void)
 
     if( sys_tick % 1000 == 0 ) {
         t1s_f = 1;
+    }
+
+    if( (deep_sleep_flag == DEEP_SLEEP_FLAG_SLEEP) && sys_tick % 10 == 0 ) {
+        t10ms_f = 1;
+    } else {
+        t10ms_f = 0;
     }
 
     extern void key_scan();
@@ -184,6 +192,11 @@ void EXTI4_15_IRQHandler(void)
     if (RESET != EXTI_GetITStatus(EXTI_Line8))
     {
         EXTI_ClearITPendingBit(EXTI_Line8);
+    }
+
+    if (RESET != EXTI_GetITStatus(EXTI_Line13))
+    {
+        EXTI_ClearITPendingBit(EXTI_Line13);
     }
 }
 /**

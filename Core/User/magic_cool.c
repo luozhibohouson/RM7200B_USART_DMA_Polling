@@ -26,7 +26,21 @@
 
 #define     KEY_VOL_CFG     1  // 按键设置电压
 
-#define     VOL_TARGET      50  // 流量目标
+#if 1
+    #define     VOL_TARGET      50  // 流量目标
+    #define     VOL_TARGET_90P  47
+    #define     VOL_TARGET_80P  44
+    #define     VOL_TARGET_70P  41
+    #define     VOL_TARGET_60P  38
+    #define     VOL_TARGET_50P  35
+#else
+    #define     VOL_TARGET      40 //40  // 流量目标
+    #define     VOL_TARGET_90P  37 //37
+    #define     VOL_TARGET_80P  34 //35
+    #define     VOL_TARGET_70P  31 //33
+    #define     VOL_TARGET_60P  28 //30
+    #define     VOL_TARGET_50P  25 //27
+#endif
 
 #if 1 // 11*11 单/双泵频率范围 -- 电感使用2.2mH
     #define     FREQ_MIN        25000
@@ -37,9 +51,9 @@
 #endif
 
 /*****************************************************************/
-float flow_target = VOL_TARGET;
 uint8_t update_cur;
 uint16_t magic_cool_vpp = 0;
+uint8_t magic_cool_flow_level = FLOW_LEVEL_100_PERCENT;
 
 float voltage_gain = 11.8;
 #if MAGIC_COOL_IMPEDANCE_DEFAULT == MAGIC_COOL_IMPEDANCE_VPP || \
@@ -71,7 +85,7 @@ uint32_t magic_cool_ph_min = 0;
 uint32_t magic_cool_freqstart = 22500, magic_cool_freqstop = 29000;
 uint32_t magic_cool_runfreq = 25000;
 uint32_t magic_cool_freq_step = 100;
-uint32_t magic_cool_target_vol = 70;
+uint32_t magic_cool_target_vol = VOL_TARGET;
 uint32_t magic_cool_key_count = 0;
 
 uint32_t magic_cool_pwr_max = 0;
@@ -121,13 +135,6 @@ void magic_cool_key_scan(uint8_t key1, uint8_t key2, uint8_t key3)
     if (key2 == 0x01) {
         if (magic_cool_mode == 0) {
             magic_cool_mode = 1;
-            flow_target = VOL_TARGET;
-        } else {
-            flow_target -= 2.5; //变化2.5V，流量变化大概为0.1L/min
-            if( flow_target < 30 ) {
-                flow_target = VOL_TARGET;
-            }
-            update_cur = 1;
         }
     } else if (key2 == 0x02) {
         magic_cool_mode = 0;
@@ -449,6 +456,10 @@ int magic_cool_calc_impedance(uint32_t start_freq, uint32_t stop_freq, uint32_t 
         printf("\r\n");
         freq += step_freq;
         index++;
+
+        if( !magic_cool_mode ) {
+            break;
+        }
     }
     printf("magic_cool_calc_impedance imp end \r\n\r\n");
     ret = index;
@@ -587,6 +598,10 @@ void magic_cool_run_impedance(void)
             pwr_max_idx = i;
         }
         printf("%d %d\r\n", freq_min + i * 50, freq_pwr[i]);
+
+        if( !magic_cool_mode ) {
+            break;
+        }
     }
     magic_cool_pwr_max = freq_pwr[pwr_max_idx];
 
@@ -1294,9 +1309,6 @@ void magic_cool_freq_track_current(void)
         #define FREQ_RANGE  200
 
         // if (get_systick() > scan_tick) {
-        // if( /*get_systick() > scan_tick || */(uint16_t)flow_target != magic_cool_target_vol ) {
-            // magic_cool_target_vol = (uint16_t)flow_target;
-            // printf("test_vol: %d\r\n", magic_cool_target_vol);
             // scan_tick = get_systick() + 10000;    // 2min = 2 * 60s * 1000
             freq1 = pwm_get_freq();
             j = 0;
@@ -1397,7 +1409,6 @@ void magic_cool_freq_track_current(void)
     #endif
     }
 
-    float vpp_tmp = 0.0;
     for (i = 0; i < loop_time; i++) {
         // 获取当前频率
         freq1 = pwm_get_freq();
@@ -1470,6 +1481,9 @@ void magic_cool_freq_track_current(void)
             cnt2 = 0;
         }
 
+        if( !magic_cool_mode ) {
+            return;
+        }
     }
 
     cnt0 = 0;
@@ -1529,25 +1543,27 @@ void magic_cool_set_target_vol(uint32_t vol)
     magic_cool_target_vol = vol;
 }
 
-
-// FIXME: 待测试指令效果
 // 串口发送指令调整流量 -> 调整电压
-void magic_cool_set_target_vol_by_flow(uint8_t direction, uint8_t flow_level)
+void magic_cool_set_target_vol_by_flow(uint8_t flow_level)
 {
-    float voltage_step = 2.5 * flow_level;
-    uint32_t target_vol;
-    if( direction == 0 ) {
-        target_vol = magic_cool_target_vol - (uint32_t)voltage_step;
-    } else {
-        target_vol = magic_cool_target_vol + (uint32_t)voltage_step;
+    uint32_t target_vol = 0;
+    switch (flow_level) {
+        case FLOW_LEVEL_90_PERCENT: target_vol = VOL_TARGET_90P; break;
+        case FLOW_LEVEL_80_PERCENT: target_vol = VOL_TARGET_80P; break;
+        case FLOW_LEVEL_70_PERCENT: target_vol = VOL_TARGET_70P; break;
+        case FLOW_LEVEL_60_PERCENT: target_vol = VOL_TARGET_60P; break;
+        case FLOW_LEVEL_50_PERCENT: target_vol = VOL_TARGET_50P; break;
+        default: target_vol = VOL_TARGET; break;
     }
-    //TODO: 限制电压范围
-    if( target_vol > VOL_TARGET ) {
-        target_vol = VOL_TARGET;
-    } else if( target_vol < 30 ) {
-        target_vol = 30;
+
+    if( target_vol != magic_cool_target_vol ) {
+        update_cur = 1; // 若电压不一样，立马进行追频
+        magic_cool_set_target_vol(target_vol);
     }
-    magic_cool_set_target_vol(target_vol);
+
+    if( !magic_cool_mode ) {
+        magic_cool_mode = 1;
+    }
 }
 
 void magic_cool_config_vol(uint32_t opt)
@@ -1681,7 +1697,7 @@ void magic_cool_config(void)
     pwm1_duty_out = PWM1_MIN_POWER_DUTY;
     pwm1_set_duty(pwm1_duty_out);  // 设置DAC输出DCDC
     // set_power_enable(ENABLE);
-    magic_cool_set_target_vol(VOL_TARGET);   // 设置运行电压
+    // magic_cool_set_target_vol(VOL_TARGET);   // 设置运行电压
     // set_dac_output(2, 1024);  // cur offset
     magic_cool_mode = 0;
 }
@@ -1730,11 +1746,11 @@ void magic_cool_run(void)
         #endif
         return;
     } else if (magic_cool_mode == 1) {  // 校准,阻抗谱
-        magic_cool_set_target_vol(VOL_TARGET);   // 设置运行电压
+        // magic_cool_set_target_vol(VOL_TARGET);   // 设置运行电压
         magic_cool_run_impedance();
 //        pwm_set_freq(ch, 28000);
         magic_cool_mode = 3;
-        magic_cool_set_target_vol(VOL_TARGET);   // 设置运行电压
+        // magic_cool_set_target_vol(VOL_TARGET);   // 设置运行电压
 //        oled_show_ui();
     } else if (magic_cool_mode == 2) {  // 不追频运行，打印电压电流流量
         magic_cool_mode2();
