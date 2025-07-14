@@ -294,6 +294,11 @@ static void handle_get_version_cmd(uint8_t *data, uint16_t data_len)
         response_data[1] = app_version[0];
         response_data[2] = app_version[1];
         response_data[3] = error_code;
+    #ifndef CHUAN_YIN_VERSION  // TODO:传音的版本，发送的ASCII码。其他客户发送的为十进制数
+        response_data[0] -= '0';
+        response_data[1] -= '0';
+        response_data[2] -= '0';
+    #endif
     }
 
     // 发送响应

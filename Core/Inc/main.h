@@ -34,6 +34,8 @@
 extern "C" {
 #endif
 
+// #define CHUAN_YIN_VERSION  // 给传音客户时，需要打开该宏。其他客户关闭
+
 /* Files include */
 #include <stdio.h>
 #include "debug.h"

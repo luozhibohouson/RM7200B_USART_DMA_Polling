@@ -145,7 +145,7 @@ void sys_delayms(int ms)
     int tickx = sys_tick + ms;
 
     while(tickx > sys_tick) {
-#if ENABLE_USART
+#if ENABLE_USART && !ENABLE_PRINTF
         uart_cmd_process();
 #endif
     }
@@ -175,7 +175,7 @@ int main(void)
     {
         // key_scan();
         rm_magic_run();
-#if ENABLE_USART
+#if ENABLE_USART && !ENABLE_PRINTF
         uart_cmd_process();
 #endif
         deep_sleep();
