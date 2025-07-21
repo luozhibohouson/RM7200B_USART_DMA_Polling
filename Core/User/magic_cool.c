@@ -109,9 +109,9 @@ uint8_t mc_key1_last = 1, mc_key2_last = 1, mc_key3_last = 1;  // KEY
 static void dcdc_power_control(uint8_t enable)
 {
     if( enable ) {
-        GPIO_WriteBit(GPIOB, GPIO_Pin_5, Bit_SET);
+        GPIO_WriteBit(GPIOB, GPIO_Pin_5 | GPIO_Pin_6, Bit_SET);
     } else {
-        GPIO_WriteBit(GPIOB, GPIO_Pin_5, Bit_RESET);
+        GPIO_WriteBit(GPIOB, GPIO_Pin_5 | GPIO_Pin_6, Bit_RESET);
     }
 }
 
