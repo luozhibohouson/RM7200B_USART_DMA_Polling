@@ -51,9 +51,6 @@ void deep_sleep(void);
   * @{
   */
 
-#define HARDWARE_VERSION "1"  // 硬件版本
-#define APP_VERSION      "10"  // 1.0版本
-
 typedef struct {
     uint16_t app_valid;
     uint16_t app_success;

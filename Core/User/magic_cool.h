@@ -16,8 +16,7 @@ void magic_cool_freq_track_current(void);
 void magic_cool_freq_track(void);
 void magic_cool_run(void);
 void magic_cool_set_target_vol(uint32_t vol);
-void magic_cool_config_vol(uint32_t opt);
 void magic_cool_config_freq(uint32_t opt);
 void magic_cool_set_mode(uint32_t mode);
- 
+
 #endif  // __MAGIC_COOL_H__

@@ -199,9 +199,15 @@ void pid_init(void)
 //    pid_rmx_q15.Kd = 0;
 
     // dcdc
-    pid_rmx_q15.Kp = 5800;
-    pid_rmx_q15.Ki = 300;
-    pid_rmx_q15.Kd = 0;
+    // 位置式PID
+    // pid_rmx_q15.Kp = 2000;    // 降低比例，减小过冲
+    // pid_rmx_q15.Ki = 900;     // 减小积分，防止饱和
+    // pid_rmx_q15.Kd = 0;       // 增加微分，抑制振荡
+
+    // 增量式PID
+    pid_rmx_q15.Kp = 100;
+    pid_rmx_q15.Ki = 1500;
+    pid_rmx_q15.Kd = 100;
 
     arm_rm_pid_init_q15(&pid_rmx_q15, 1);
 //    printf("asdf--- p:%d, i:%d, d:%d, A0:%d, A1:%d, A2:%d\r\n",

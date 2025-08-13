@@ -33,6 +33,7 @@
 #include "platform.h"
 #include "usart.h"
 #include "mm32spin0230_it.h"
+#include "define.h"
 
 /**
   * @addtogroup MM32SPIN0230_LibSamples
@@ -135,6 +136,11 @@ void SysTick_Handler(void)
 
     extern void key_scan();
     key_scan();
+
+#if KEY_VOL_CFG
+    extern void magic_cool_led_control(uint32_t tick);
+    magic_cool_led_control(sys_tick);
+#endif
 }
 
 /***********************************************************************************************************************

@@ -15,6 +15,7 @@ void pwm_set_config(uint32_t freq, uint32_t duty);
 void pwm_set_freq(uint32_t freq);
 uint32_t pwm_get_freq(void);
 uint32_t pwm_get_reload(void);
+uint32_t pwm_get_duty(void);
 void pwm_set_freq_limt(uint32_t min, uint32_t max);
 void pwm_set_dt(uint32_t dt);
 void pwm_freq_increase(uint32_t step);

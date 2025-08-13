@@ -3,8 +3,6 @@
 
 #include "main.h"
 
-#define ENABLE_USART   1
-
 /* Bootloader配置 */
 #define BOOTLOADER_START_ADDR       0x08000000
 #define BOOTLOADER_SIZE             (8*1024)    // 8KB
@@ -102,8 +100,6 @@ typedef struct {
 void USART_PrintfConfigure(uint32_t Baudrate);
 void USART_Configure(uint32_t Baudrate, uint8_t delay_enable);
 void usart_callback(void);
-
-void VectorTable_Init(void);
 
 #endif
 

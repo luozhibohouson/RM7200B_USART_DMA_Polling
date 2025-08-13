@@ -5,8 +5,10 @@
 
 uint32_t adc_freq = 1000000;
 uint16_t adc_data[ADC_BUFFER_SIZE] = {0};
-// uint16_t adc_voltage_data_i[ADC_CH_SIZE] = {0};
-// uint16_t adc_current_data_i[ADC_CH_SIZE] = {0};
+#if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
+uint16_t adc_voltage_data_i[ADC_CH_SIZE] = {0};
+uint16_t adc_current_data_i[ADC_CH_SIZE] = {0};
+#endif
 float adc_voltage_data[ADC_CH_SIZE] = {0};
 float adc_current_data[ADC_CH_SIZE] = {0};
 int adc_freq_Level;
@@ -17,7 +19,7 @@ float adc_vol_avg = 0;
 float adc_cur_avg = 0;
 
 
-#ifdef MAGIC_COOL_VPP_RMS
+#if MAGIC_COOL_VPP_RMS && MAGIC_COOL_IMPEDANCE_DEFAULT == MAGIC_COOL_IMPEDANCE_RMS
 float adc_vrms = 0.0;  // 交流电压有效值
 float adc_irms = 0.0;  // 交流电流有效值
 #endif
@@ -322,7 +324,7 @@ void adc_output_conv(int num)  // 输出交流电压电流
 //        adc_current_data[i] = adc_data[i * 2 + 1];
 ////        printf("%.5f, %.5f, %d, %d\r\n", adc_voltage_data[i], adc_current_data[i], adc_data[i * 2], adc_data[i * 2 + 1]);
 //    }
-#ifdef MAGIC_COOL_ADC_CENTER
+#if MAGIC_COOL_ADC_CENTER
     period_sample_cnt = adc_freq / pwm_get_freq();  // 周期采样个数
     period_sample_cnt = 1 + num - (num % period_sample_cnt);  // 完整周期采样个数
     vol_avg_sum = 0.0;
@@ -358,7 +360,7 @@ void adc_output_conv(int num)  // 输出交流电压电流
     adc_ipp = 0.0;
 #endif
 
-#ifdef MAGIC_COOL_VPP_RMS
+#if MAGIC_COOL_VPP_RMS && MAGIC_COOL_IMPEDANCE_DEFAULT == MAGIC_COOL_IMPEDANCE_RMS
     // 不分开计算的原因是电压值比较稳定，电流值比较小，误差大，在判断过零时会出错
     // 如果电压电流信号稳定，也可以分开计算
     get_vol_cur_rms(adc_voltage_data, adc_current_data, num, &adc_vrms, &adc_irms);

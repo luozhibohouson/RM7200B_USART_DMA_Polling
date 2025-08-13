@@ -38,7 +38,8 @@ extern "C" {
 
 /* Files include */
 #include <stdio.h>
-#include "debug.h"
+#include <stdint.h>
+#include "define.h"
 #include "hal_conf.h"
 /* Exported types *****************************************************************************************************/
 

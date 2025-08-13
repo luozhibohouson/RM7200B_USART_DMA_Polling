@@ -75,11 +75,11 @@ void key3_up_handle(void)
 
 void key_scan(void)
 {
-    uint8_t key1, key2, key3;
+    uint8_t key2;
     static uint8_t debounce_cnt2 = 0;
     static uint8_t key_status = 0;
     static uint32_t key2_current_time = 0;
-    uint16_t key_long_time2 = 1000;
+    const uint16_t key_long_time2 = 1000;  // 按键长按时间
     uint8_t change_flag = 0;
 
     if ((get_systick() - key_tick) <= 20) {  // 20ms扫描一次
@@ -87,21 +87,7 @@ void key_scan(void)
     }
     key_tick = get_systick();
 
-    // key1 = HAL_GPIO_ReadPin(GPIOC, KEY1_PC8_Pin);
     key2 = GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_8);
-    // key3 = HAL_GPIO_ReadPin(GPIOA, KEY3_PA10_Pin);
-
-    // if (key1_last != key1) {
-    //     change_flag = 1;
-    //     key1_last = key1;
-    //     if (key1 == 0) {
-    //         key1_down_handle();
-    //         printf("key1 down\r\n");
-    //     } else {
-    //         key1_up_handle();
-    //         printf("key1 up\r\n");
-    //     }
-    // }
 
     if (key2_last != key2) {
         debounce_cnt2++;
@@ -111,54 +97,26 @@ void key_scan(void)
 
             key2_last = key2;
             if (key2 == 0) {
-                // key2_down_handle();
                 key_status |= 0x01;
                 key2_current_time = get_systick();
-                // printf("key2 down\r\n");
             } else {
-                // key2_up_handle();
                 key_status = 0;
-                // printf("key2 up\r\n");
             }
         }
     } else {
         debounce_cnt2 = 0;
 
         if( key2 == 0 ) {
-            key_long_time2 = 1000;
             if( key_status != 0x02 ) {
                 if( (get_systick() - key2_current_time) > key_long_time2 ) {
                     key2_current_time = get_systick();
-                    key_status = 0x02; //即为KeyBack
+                    key_status = 0x02; //长按生效
                     change_flag = 1;
                 }
             }
         }
     }
 
-    // if (key2_last != key2) {
-    //     change_flag = 1;
-    //     key2_last = key2;
-    //     if (key2 == 0) {
-    //         key2_down_handle();
-    //         printf("key2 down\r\n");
-    //     } else {
-    //         key2_up_handle();
-    //         printf("key2 up\r\n");
-    //     }
-    // }
-
-    // if (key3_last != key3) {
-    //     change_flag = 1;
-    //     key3_last = key3;
-    //     if (key3 == 0) {
-    //         key3_down_handle();
-    //         printf("key3 down\r\n");
-    //     } else {
-    //         key3_up_handle();
-    //         printf("key3 up\r\n");
-    //     }
-    // }
     if (change_flag == 1)
         magic_cool_key_scan(1, key_status, 1);
 }

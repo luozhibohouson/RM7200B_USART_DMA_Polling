@@ -1,5 +1,7 @@
 #include "tim.h"
+#include "define.h"
 
+uint32_t pwm_get_duty(void);
 /***********************************************************************************************************************
   * @brief
   * @note   none
@@ -96,8 +98,12 @@ void TIM1_Configure(void)
 
     TIM_OCStructInit(&TIM_OCInitStruct);
     TIM_OCInitStruct.TIM_OCMode       = TIM_OCMode_PWM1;
-    TIM_OCInitStruct.TIM_OutputState  = TIM_OutputState_Enable;
     TIM_OCInitStruct.TIM_OutputNState = TIM_OutputNState_Enable;
+#if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
+    TIM_OCInitStruct.TIM_OutputState  = TIM_OutputState_Enable;
+#elif PWM_DRIVER_METHOD == PWM_SINGLE_END_DRIVE
+    TIM_OCInitStruct.TIM_OutputState  = TIM_OutputState_Disable;
+#endif
     TIM_OCInitStruct.TIM_Pulse        = 5000-1;
     TIM_OCInitStruct.TIM_OCPolarity   = TIM_OCPolarity_High;
     TIM_OCInitStruct.TIM_OCNPolarity  = TIM_OCNPolarity_High;
@@ -108,6 +114,7 @@ void TIM1_Configure(void)
 
     TIM_OC3PreloadConfig(TIM1, TIM_OCPreload_Enable);
 
+#if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
     TIM_BDTRStructInit(&TIM_BDTRInitStruct);
     TIM_BDTRInitStruct.TIM_OSSRState       = TIM_OSSRState_Enable;
     TIM_BDTRInitStruct.TIM_OSSIState       = TIM_OSSIState_Enable;
@@ -120,24 +127,55 @@ void TIM1_Configure(void)
 
     // TIM_BreakInputFilterConfig(TIM1, TIM_IOBKIN_BKIN5, TIM_BKINF_16);
     // TIM_BreakInputFilterCmd(TIM1, ENABLE);
-
+#endif
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
 
-    GPIO_PinAFConfig(GPIOB, GPIO_PinSource3, GPIO_AF_6);  /* TIM1_CH3N  */
     GPIO_PinAFConfig(GPIOB, GPIO_PinSource4, GPIO_AF_1);  /* TIM1_CH3  */
+#if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
+    GPIO_PinAFConfig(GPIOB, GPIO_PinSource3, GPIO_AF_6);  /* TIM1_CH3N  */
+#endif
 
     GPIO_StructInit(&GPIO_InitStruct);
+#if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
     GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_3 | GPIO_Pin_4;
+#elif PWM_DRIVER_METHOD == PWM_SINGLE_END_DRIVE
+    GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_4;
+#endif
     GPIO_InitStruct.GPIO_Speed = GPIO_Speed_High;
     GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AF_PP;
     GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+#if PWM_DRIVER_METHOD == PWM_SINGLE_END_DRIVE
+    GPIO_WriteBit(GPIOB, GPIO_Pin_3, Bit_RESET);
+    GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_3;
+    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_High;
+    GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_Out_PP;
+    GPIO_Init(GPIOB, &GPIO_InitStruct);
+#endif
+
     TIM_Cmd(TIM1, ENABLE);
 
-    TIM_CtrlPWMOutputs(TIM1, DISABLE);
+    TIM_CtrlPWMOutputs(TIM1, ENABLE);
 
     TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Disable);
-    TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Disable);
+#if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
+	TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Disable);
+#endif
+}
+
+void pwm_enable(uint32_t enable)
+{
+    if (enable) {
+        TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);
+    #if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
+        TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Enable);
+    #endif
+    } else {
+        TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Disable);
+    #if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
+        TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Disable);
+    #endif
+    }
 }
 
 uint32_t tim1_min_freq = 0;
@@ -226,8 +264,6 @@ void timer1_set_duty_bydt(uint32_t duty_dt)
     }
 }
 
-
-
 void pwm_set_config(uint32_t freq, uint32_t duty)
 {
     timer1_set_output(freq, duty);
@@ -235,7 +271,12 @@ void pwm_set_config(uint32_t freq, uint32_t duty)
 
 void pwm_set_freq(uint32_t freq)
 {
-    timer1_set_output(freq, 50);
+#if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
+    uint32_t duty = 50;
+#else
+    uint32_t duty = pwm_get_duty();
+#endif
+    timer1_set_output(freq, duty);
 }
 
 uint32_t pwm_get_freq(void)
@@ -248,6 +289,10 @@ uint32_t pwm_get_reload(void)
     return tim1_reload;
 }
 
+uint32_t pwm_get_duty(void)
+{
+    return tim1_duty * 100 / tim1_reload;
+}
 
 void pwm_set_freq_limt(uint32_t min, uint32_t max)
 {
@@ -324,10 +369,10 @@ int pwm_duty_decrease(uint32_t step)
 int pwm_duty_set_pid(uint32_t duty)
 {
     int ret = 0;
-    if (duty <= 150) {
-        duty = 150;
+    if (duty <= 50) {
+        duty = 50;
         tim1_duty = duty;
-        ret = 1;
+        // ret = 1;
     } else if (duty > (tim1_reload >> 1)) {
         tim1_duty = tim1_reload >> 1;
         ret = 1;
@@ -372,14 +417,4 @@ int pwm_duty_bydt_decrease(uint32_t step)
     return ret;
 }
 
-void pwm_enable(uint32_t enable)
-{
-    if (enable) {
-        TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);
-        TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Enable);
-    } else {
-        TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Disable);
-        TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Disable);
-    }
-}
 

@@ -9,3 +9,7 @@ MDK-ARM/USART_DMA_Polling*
 uart串口指令.txt
 MDK-ARM/hex2bin.bat
 MDK-ARM/hex2bin.py
+
+*.hex
+*.bin
+*.txt
