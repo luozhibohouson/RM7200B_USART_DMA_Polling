@@ -16,29 +16,38 @@
 #define APP_VERSION                "10"
 
 // 驱动方式
-#define PWM_DRIVER_METHOD          PWM_DIFFERENTIAL_DRIVE
+#define PWM_DRIVER_METHOD          PWM_SINGLE_END_DRIVE
 
 // 供电选择
 #define MCU_VDD                    MCU_VDD_3V3
 #if MCU_VDD == MCU_VDD_3V3
   #define MCU_VDD_GAIN             3.3
-  // 硬件调整电阻后，DAC驱动电压最大只能到3V,最小是0V。原来是3.3V和0.2V
-#if 1
+  #define MCU_VDD_GAIN_10X         33
   #define MCU_VDD_MAX_GAIN_10X     30
+#if 1
   #define MCU_VDD_MIN_GAIN_10X     0
-#else
-  #define MCU_VDD_MAX_GAIN_10X     33
+#else // 未修改DC升压反馈电阻,最小只能到0.2V
   #define MCU_VDD_MIN_GAIN_10X     2
 #endif
 #elif MCU_VDD == MCU_VDD_3V0
   #define MCU_VDD_GAIN             3.0
+  // 硬件调整电阻后，DAC驱动电压最大只能到3V,最小是0V。原来是3.3V和0.2V
+  #define MCU_VDD_GAIN_10X         30
   #define MCU_VDD_MAX_GAIN_10X     30
+#if 1
   #define MCU_VDD_MIN_GAIN_10X     0
+#else // 未修改DC升压反馈电阻,最小只能到0.2V
+  #define MCU_VDD_MIN_GAIN_10X     2
+#endif
 #endif
 
 // 电压增益与偏移
 #if MCU_VDD == MCU_VDD_3V3
-  #define MAGIC_COOL_VOLTAGE_GAIN  11.8
+  #if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
+    #define MAGIC_COOL_VOLTAGE_GAIN  11.8
+  #else
+    #define MAGIC_COOL_VOLTAGE_GAIN  13.79
+  #endif
 #elif MCU_VDD == MCU_VDD_3V0
   #define MAGIC_COOL_VOLTAGE_GAIN  12.98
 #endif
@@ -50,8 +59,8 @@
 #endif
 
 // DAC升压配置
-#define PWM1_MIN_POWER_DUTY         ((HSI_VALUE/PWM1_FREQ*MCU_VDD_MAX_GAIN_10X/MCU_VDD_MAX_GAIN_10X))
-#define PWM1_MAX_POWER_DUTY         ((HSI_VALUE/PWM1_FREQ*MCU_VDD_MIN_GAIN_10X/MCU_VDD_MAX_GAIN_10X))
+#define PWM1_MIN_POWER_DUTY         ((HSI_VALUE/PWM1_FREQ*MCU_VDD_MAX_GAIN_10X/MCU_VDD_GAIN_10X))
+#define PWM1_MAX_POWER_DUTY         ((HSI_VALUE/PWM1_FREQ*MCU_VDD_MIN_GAIN_10X/MCU_VDD_GAIN_10X))
 
 // 功能开关
 // 按键调整电压

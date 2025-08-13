@@ -59,7 +59,7 @@ volatile uint8_t update_cur;
 uint16_t magic_cool_vpp = 0;
 
 
-uint16_t pwm1_duty_out = PWM1_MIN_POWER_DUTY;
+int32_t pwm1_duty_out = PWM1_MIN_POWER_DUTY;
 uint16_t pwm1_duty_limit_min = PWM1_MAX_POWER_DUTY;
 uint16_t pwm1_duty_limit_max = PWM1_MIN_POWER_DUTY;
 /*****************************************************************/
@@ -313,7 +313,7 @@ int magic_cool_voltage_closeloop_dcdc(uint32_t vol_target, uint32_t vol_err, uin
         //     ret = 1;
         // }
         // printf("pwm1_duty_out:%d, pid_delta:%d\r\n", pwm1_duty_out, pid_delta);
-        pwm1_set_duty(pwm1_duty_out);
+        pwm1_set_duty((uint32_t)pwm1_duty_out);
         sys_delayms(50);
 
         if (ret == 1) {
