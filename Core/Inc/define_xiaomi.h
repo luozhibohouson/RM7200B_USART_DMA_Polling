@@ -9,21 +9,18 @@
     #define     VOL_TARGET_60P  38
     #define     VOL_TARGET_50P  35
 #else
-    #define     VOL_TARGET      40 //40  // 流量目标
+    #define     VOL_TARGET      36 //40  // 流量目标
     #define     VOL_TARGET_90P  37 //37
     #define     VOL_TARGET_80P  34 //35
     #define     VOL_TARGET_70P  31 //33
     #define     VOL_TARGET_60P  28 //30
     #define     VOL_TARGET_50P  25 //27
-
-    // 最大电压，超过停止输出
-    #define     VOL_TARGET_MAX  55 //(VOL_TARGET+20)
 #endif
 
 // 泵频
-#define PUMP_FREQ                  28200
-#define FREQ_MIN                   22000 // (PUMP_FREQ - 300)
-#define FREQ_MAX                   25300 // (PUMP_FREQ + 300)
+#define PUMP_FREQ                  24900
+#define FREQ_MIN                   (PUMP_FREQ - 100)
+#define FREQ_MAX                   (PUMP_FREQ + 300)
 
 // 硬件版本
 // V1.1对比V1.0,增加了dc升压芯片的控制引脚,已做兼容
@@ -32,7 +29,7 @@
 #define HARDWARE_VERSION           HW_V1_1
 
 // 软件版本
-#define APP_VERSION                "11"
+#define APP_VERSION                "10"
 
 // 驱动方式
 #define PWM_DRIVER_METHOD          PWM_DIFFERENTIAL_DRIVE
@@ -54,7 +51,7 @@
   // 硬件调整电阻后，DAC驱动电压最大只能到3V,最小是0V。原来是3.3V和0.2V
   #define MCU_VDD_GAIN_10X         30
   #define MCU_VDD_MAX_GAIN_10X     30
-#if 1
+#if 0
   #define MCU_VDD_MIN_GAIN_10X     0
 #else // 未修改DC升压反馈电阻,最小只能到0.2V
   #define MCU_VDD_MIN_GAIN_10X     2
@@ -81,10 +78,6 @@
 // DAC升压配置
 #define PWM1_MIN_POWER_DUTY         ((HSI_VALUE/PWM1_FREQ*MCU_VDD_MAX_GAIN_10X/MCU_VDD_GAIN_10X))
 #define PWM1_MAX_POWER_DUTY         ((HSI_VALUE/PWM1_FREQ*MCU_VDD_MIN_GAIN_10X/MCU_VDD_GAIN_10X))
-
-// 电流计算参数
-#define CURRENT_ADC_MAX             4000 // 不好计算，直接取ADC的最大值
-
 
 // 功能开关
 // 按键调整电压

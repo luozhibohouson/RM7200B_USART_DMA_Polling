@@ -142,7 +142,7 @@ void sys_delayms(int ms)
     int tickx = sys_tick + ms;
 
     while(tickx > sys_tick) {
-#if ENABLE_USART && !ENABLE_PRINTF
+#if ENABLE_USART
         uart_cmd_process();
 #endif
     }
@@ -172,7 +172,7 @@ int main(void)
     {
         // key_scan();
         rm_magic_run();
-#if ENABLE_USART && !ENABLE_PRINTF
+#if ENABLE_USART
         uart_cmd_process();
 #endif
         deep_sleep();
@@ -184,11 +184,11 @@ int main(void)
   */
 void hardware_init(uint8_t delay_enable)
 {
-#if  ENABLE_PRINTF
-    USART_PrintfConfigure(1000000);
-#elif ENABLE_USART
+#if ENABLE_USART
     // 从boot跳转，需要延时。从休眠唤醒不需要延时
     USART_Configure(115200, delay_enable);
+#elif ENABLE_PRINTF
+    USART_PrintfConfigure(1000000);
 #endif
 
     GPIO_Configure();

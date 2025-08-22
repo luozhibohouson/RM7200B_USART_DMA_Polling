@@ -17,8 +17,9 @@
 #define CY_ChuanYi      1   //传音
 #define AK_Anker        2   //安克
 #define RY_Honor        3   //荣耀
+#define XM_Xiaomi       4   //小米
 
-#define Magic_Cool_Customer  Self_Test
+#define Magic_Cool_Customer  CY_ChuanYi
 
 // 分发器：根据 Magic_Cool_Customer 选择具体客户配置
 #if Magic_Cool_Customer == Self_Test
@@ -29,12 +30,14 @@
   #include "define_anker.h"
 #elif Magic_Cool_Customer == RY_Honor
   #include "define_honor.h"
+#elif Magic_Cool_Customer == XM_Xiaomi
+  #include "define_xiaomi.h"
 #else
   #error "Unknown Magic_Cool_Customer"
 #endif
 
 // printf 空操作屏蔽保持全局一致性
-#if defined(ENABLE_PRINTF) && !(ENABLE_PRINTF)
+#if (defined(ENABLE_PRINTF) && !(ENABLE_PRINTF)) || (ENABLE_USART)
 #define printf(fmt, ...) ((void)0)
 #endif
 

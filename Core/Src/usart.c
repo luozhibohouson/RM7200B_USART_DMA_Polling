@@ -10,6 +10,23 @@ static __IO uint32_t vector_table[48] __attribute__((at(0x20000000)));
 static __IO upgrade_state_t upgrade_state __attribute__((at(0x200000C0)));
 
 void USART_DMA_Configure(uint8_t *Buffer, uint8_t Length);
+
+
+/* 故障上报状态机 */
+typedef enum {
+    FAULT_REPORT_STATE_IDLE,
+    FAULT_REPORT_STATE_WAIT_ACK,
+} fault_report_state_t;
+
+static fault_report_state_t fault_report_state = FAULT_REPORT_STATE_IDLE;
+static uint8_t fault_report_retry_count = 0;
+static uint32_t fault_report_timeout = 0;
+static protocol_fault_t fault_code_to_report = FAULT_NORMAL;
+
+#define FAULT_REPORT_MAX_RETRIES 3
+#define FAULT_REPORT_TIMEOUT_MS 1000
+
+void usart_fault_report_process(void);
 /***********************************************************************************************************************
   * @brief
   * @note   none
@@ -290,15 +307,10 @@ static void handle_get_version_cmd(uint8_t *data, uint16_t data_len)
 
         char* app_version = get_app_version();
         char* hardware_version = get_hardware_version();
-        response_data[0] = hardware_version[0]; // 硬件版本只有1个字节
-        response_data[1] = app_version[0];
-        response_data[2] = app_version[1];
+        response_data[0] = hardware_version[0] - '0'; // 硬件版本只有1个字节
+        response_data[1] = app_version[0] - '0';
+        response_data[2] = app_version[1] - '0';
         response_data[3] = error_code;
-    #ifndef CHUAN_YIN_VERSION  // TODO:传音的版本，发送的ASCII码。其他客户发送的为十进制数
-        response_data[0] -= '0';
-        response_data[1] -= '0';
-        response_data[2] -= '0';
-    #endif
     }
 
     // 发送响应
@@ -314,25 +326,41 @@ static void handle_get_version_cmd(uint8_t *data, uint16_t data_len)
 static void handle_flow_adjust_cmd(uint8_t *data, uint16_t data_len)
 {
     uint8_t error_code = ERR_SUCCESS;
+    uint8_t response_data[2] = {0};
+    extern uint8_t current_flow_level;
 
     // 验证数据长度（应该是1字节：流量等级）
     if (data_len != CMD_FLOW_ADJUST_DATA_LEN) {
         error_code = ERR_INVALID_LENGTH;
-    } else {
-        uint8_t flow_level = data[0];
+        // 发送错误响应
+        usart_send_frame(CMD_FLOW_ADJUST, &error_code, 1);
+        return;
+    }
 
-        // 验证参数
-        if (flow_level > FLOW_LEVEL_100_PERCENT || flow_level < FLOW_LEVEL_50_PERCENT) {
-            error_code = ERR_INVALID_PARAM;
-        } else {
+    uint8_t flow_level = data[0];
+
+    if (flow_level == FLOW_QUERY_CMD) {
+        // 查询当前档位
+        response_data[0] = current_flow_level;
+        response_data[1] = ERR_SUCCESS;
+        usart_send_frame(CMD_FLOW_ADJUST, response_data, 2);
+    } else {
+        // 设置流量档位
+        if (flow_level >= FLOW_LEVEL_50_PERCENT && flow_level <= FLOW_LEVEL_100_PERCENT) {
             error_code = ERR_SUCCESS;
             extern void magic_cool_set_target_vol_by_flow(uint8_t flow_level);
             magic_cool_set_target_vol_by_flow(flow_level);
+            current_flow_level = flow_level;
+        } else {
+            error_code = ERR_INVALID_PARAM;
         }
-    }
 
-    // 发送响应
-    usart_send_frame(CMD_FLOW_ADJUST, &error_code, 1);
+        response_data[0] = current_flow_level;
+        response_data[1] = error_code;
+
+        // 发送响应
+        usart_send_frame(CMD_FLOW_ADJUST, response_data, 2);
+    }
 }
 
 /**
@@ -366,6 +394,38 @@ static void handle_deep_sleep_cmd(uint8_t *data, uint16_t data_len)
 
     // 发送响应
     usart_send_frame(CMD_DEEP_SLEEP, response_data, sizeof(response_data));
+}
+
+/**
+ * @brief 处理故障报告指令
+ * @param data 数据指针
+ * @param data_len 数据长度
+ */
+static void handle_fault_report_cmd(uint8_t *data, uint16_t data_len)
+{
+    uint8_t error_code = ERR_SUCCESS;
+    uint8_t response_data[2] = {0};
+
+    // 验证数据长度（应该是1字节：故障查询或故障代码）
+    if (data_len != CMD_FAULT_REPORT_DATA_LEN) {
+        error_code = ERR_INVALID_LENGTH;
+        usart_send_frame(CMD_FAULT_REPORT, &error_code, 1);
+        return;
+    }
+
+    uint8_t fault_query = data[0];
+
+    if (fault_query == FAULT_QUERY_CMD) {
+        // 查询故障代码
+        response_data[0] = fault_code_to_report;
+        response_data[1] = ERR_SUCCESS;
+        usart_send_frame(CMD_FAULT_REPORT, response_data, 2);
+    } else {
+        // 这个函数主要是主动上报故障，通过别的函数调用，这里只处理查询
+        // 收到主机的响应，说明主机已经知道故障了，就不再上报了
+        fault_report_state = FAULT_REPORT_STATE_IDLE;
+        fault_report_retry_count = 0;
+    }
 }
 
 /**
@@ -430,7 +490,7 @@ void usart_handle_command(uint8_t *frame_data, uint16_t frame_len)
         return;
     }
 
-    // APP程序只接收调流量和系统升级指令
+    // APP程序处理所有指令
     switch (cmd) {
         case CMD_GET_VERSION:
             handle_get_version_cmd(data, data_len);
@@ -442,6 +502,10 @@ void usart_handle_command(uint8_t *frame_data, uint16_t frame_len)
 
         case CMD_DEEP_SLEEP:
             handle_deep_sleep_cmd(data, data_len);
+            break;
+
+        case CMD_FAULT_REPORT:
+            handle_fault_report_cmd(data, data_len);
             break;
 
         case CMD_SYSTEM_UPGRADE:
@@ -510,6 +574,53 @@ void uart_cmd_process(void)
 
         uart_rx_flag = 0;
         uart_rx_len = 0;
+    } else {
+        usart_fault_report_process();
+    }
+}
+
+/**
+ * @brief 主动上报故障代码
+ * @param fault_code 故障代码
+ */
+void fault_report_active(protocol_fault_t fault_code)
+{
+    // 如果当前正在上报，则忽略新的上报请求
+    if (fault_report_state != FAULT_REPORT_STATE_IDLE) {
+        return;
+    }
+
+    if( fault_code_to_report == fault_code ) {
+        return;
+    }
+
+    fault_code_to_report = fault_code;
+    fault_report_state = FAULT_REPORT_STATE_WAIT_ACK;
+    fault_report_retry_count = 0;
+
+    // 立即发送第一次
+    usart_send_frame(CMD_FAULT_REPORT, (uint8_t*)&fault_code_to_report, 1);
+    extern uint32_t get_systick(void);
+    fault_report_timeout = get_systick() + FAULT_REPORT_TIMEOUT_MS;
+    fault_report_retry_count++;
+}
+
+void usart_fault_report_process(void)
+{
+    if (fault_report_state == FAULT_REPORT_STATE_WAIT_ACK) {
+        extern uint32_t get_systick(void);
+        if (get_systick() >= fault_report_timeout) {
+            if (fault_report_retry_count < FAULT_REPORT_MAX_RETRIES) {
+                // 超时，重试
+                usart_send_frame(CMD_FAULT_REPORT, (uint8_t*)&fault_code_to_report, 1);
+                fault_report_timeout = get_systick() + FAULT_REPORT_TIMEOUT_MS;
+                fault_report_retry_count++;
+            } else {
+                // 达到最大重试次数，停止上报
+                fault_report_state = FAULT_REPORT_STATE_IDLE;
+                fault_report_retry_count = 0;
+            }
+        }
     }
 }
 
