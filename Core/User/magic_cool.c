@@ -47,8 +47,7 @@ typedef struct {
 _flow_freq_cfg_t flow_freq_cfg;
 
 uint8_t current_flow_level = FLOW_LEVEL_100_PERCENT;  // 当前流量档位
-protocol_fault_t current_fault_status = FAULT_NORMAL;  // 当前故障状态
-
+protocol_fault_t fault_status = FAULT_NORMAL;  // 当前故障状态
 
 #if KEY_VOL_CFG
 volatile uint8_t led_always_on = 0;
@@ -108,24 +107,18 @@ uint32_t mode2_tick = 0;
 void magic_cool_set_limt(uint32_t freq_min, uint32_t freq_max);
 static void dcdc_power_control(uint8_t enable);
 
-static void close_all_output(void)
+void close_all_output(void)
 {
     magic_cool_mode = 0;
     pwm_enable(DISABLE);
     dcdc_power_control(DISABLE);
 }
 
-static protocol_fault_t is_over_voltage(void)
+static protocol_fault_t is_over_voltage(uint16_t vpp)
 {
     protocol_fault_t ret = FAULT_NORMAL;
-    uint32_t vpp_sum = 0;
 
-    for (uint8_t n = 0; n < 8; n++) {
-        adc_voltage_get_vpp(128);
-        vpp_sum += adc_vpp;
-    }
-    vpp_sum >>= 3;
-    float vol = (float)((vpp_sum +voltage_offset)/voltage_gain);
+    float vol = (float)((vpp +voltage_offset)/voltage_gain);
     // printf("vol: %.2f\r\n", vol);
 
     // 若追频时，电压超过最大电压，则认为过压停止运行
@@ -140,43 +133,41 @@ static protocol_fault_t is_over_voltage(void)
         ret = FAULT_SETTING_FAILED;
     }
 #endif
+    if( ret != FAULT_NORMAL && ret != fault_status ) {
+        printf("vol err: %d\r\n", ret);
+    #if ENABLE_USART
+        fault_report_active(ret);
+    #endif
+    }
+    fault_status = ret;
+
     return ret;
 }
 
-static protocol_fault_t is_over_current(void)
+static protocol_fault_t is_over_current(uint16_t cur, FunctionalState ignore_pump_not_work)
 {
     protocol_fault_t ret = FAULT_NORMAL;
 
-    adc_hvli_input_conv(128);
-
-    extern uint16_t adc_dc_lcur_offset;
     // 每颗IC的运放偏置电流的AD都不一样，需要重新加回偏置电流
-    if( adc_dc_lcur_avg > (CURRENT_ADC_MAX - adc_dc_lcur_offset) ) {
+    if( cur > CURRENT_ADC_MAX ) {
         close_all_output();
         ret = FAULT_OVER_CURRENT;
+    } else if( cur < CURRENT_ADC_MIN ) {
+        if( ignore_pump_not_work == DISABLE ) {
+            close_all_output();
+            // NOTE: 2025-08-25：增加气泵空载检测
+            ret = FAULT_PUMP_NOT_WORK;
+        }
     }
+    if( ret != FAULT_NORMAL && ret != fault_status ) {
+        printf("cur err: %d\r\n", ret);
+    #if ENABLE_USART
+        fault_report_active(ret);
+    #endif
+    }
+    fault_status = ret;
 
     return ret;
-}
-
-static void check_fault(void)
-{
-    static uint32_t tick_fault;
-
-    if( get_systick() >= tick_fault ) {
-        protocol_fault_t over_voltage_status = is_over_voltage();
-        if( over_voltage_status != FAULT_NORMAL ) {
-            current_fault_status = over_voltage_status;
-        } else if( is_over_current() != FAULT_NORMAL ) {
-            current_fault_status = FAULT_OVER_CURRENT;
-        } else {
-            current_fault_status = FAULT_NORMAL;
-        }
-
-        fault_report_active(current_fault_status);
-
-        tick_fault = get_systick() + 100;
-    }
 }
 
 #define  FLOW_FREQ_CFG_ADDR  (PARAM_START_ADDR - FLASH_PAGE_SIZE)
@@ -199,14 +190,16 @@ static void flow_freq_cfg_write(uint16_t gold_freq)
         flow_freq_cfg.normal_work_freq = ((gold_freq+5)/100)*100; //四舍五入并且取百位整数
         flow_freq_cfg.normal_vol_freq_start = flow_freq_cfg.normal_work_freq - 300;
         flow_freq_cfg.normal_vol_freq_end = flow_freq_cfg.normal_work_freq + 300;
+        // BUG: 修复手动关闭or手动发送指令关闭时，扫频没有从normal_vol_freq_start和normal_vol_freq_end开始
+        magic_cool_set_limt(flow_freq_cfg.normal_vol_freq_start, flow_freq_cfg.normal_vol_freq_end);
         printf("%s: Success\r\n", __func__);
     } else {
+        printf("%s: Fail. wk_fq:%d, st_fq:%d, end_fq:%d\r\n", __func__, flow_freq_cfg.normal_work_freq, flow_freq_cfg.normal_vol_freq_start, flow_freq_cfg.normal_vol_freq_end);
         flow_freq_cfg.normal_vol_freq_start = FREQ_MIN;
         flow_freq_cfg.normal_vol_freq_end = FREQ_MAX;
         flow_freq_cfg.normal_work_freq = 0;
         magic_cool_set_limt(FREQ_MIN, FREQ_MAX);
         magic_cool_mode = 1;
-        printf("%s: Fail. Restart to scan\r\n", __func__);
         return;
     }
 
@@ -468,7 +461,8 @@ int magic_cool_voltage_closeloop_dcdc(uint32_t vol_target, uint32_t vol_err, uin
         }
     }
 
-    return 0;
+    magic_cool_vpp = vpp;
+    return 1;
 }
 
 // 电压闭环
@@ -491,6 +485,7 @@ int magic_cool_voltage_closeloop(uint32_t vol_target, uint32_t vol_err, uint32_t
     // magic_cool_voltage_closeloop_duty(vol_target, vol_err, timeout);
 #else
     magic_cool_voltage_closeloop_dcdc(vol_target, vol_err, timeout);
+    is_over_voltage(magic_cool_vpp);
 #endif
     return 0;
 }
@@ -528,11 +523,18 @@ int magic_cool_calc_impedance(uint32_t start_freq, uint32_t stop_freq, uint32_t 
     printf("magic_cool_calc_impedance imp\r\n");
     for (freq = start_freq; freq <= stop_freq; ) {
         pwm_set_freq(freq);
-        magic_cool_voltage_closeloop(target_vpp, 3, 100);// 电压闭环
-        sys_delayms(20);
-        magic_cool_voltage_closeloop(target_vpp, 3, 100);// 电压闭环
-        printf("freq: %d vpp:%.1f duty:%d ", freq, (float)((magic_cool_vpp+voltage_offset)/voltage_gain), pwm_get_duty());
-        sys_delayms(200);
+        magic_cool_voltage_closeloop(target_vpp, 2, 100);// 电压闭环
+        vpp = (magic_cool_vpp+voltage_offset)/voltage_gain;
+        if( vpp <= (VOL_TARGET+4) ) { // 电压过高 直接进行下一个频率
+            sys_delayms(20);
+            magic_cool_voltage_closeloop(target_vpp, 2, 100);// 电压闭环
+            vpp = (magic_cool_vpp+voltage_offset)/voltage_gain;
+            if( vpp <= (VOL_TARGET+4) ) {
+                sys_delayms(200);
+            }
+        } else {
+            goto current_freq_scan_end;
+        }
 #if MAGIC_COOL_IMPEDANCE_DEFAULT == MAGIC_COOL_IMPEDANCE_VPP
         ipp = 0.0; vpp = 0.0;
         for (i = 0; i < 50; i++) {
@@ -605,17 +607,19 @@ int magic_cool_calc_impedance(uint32_t start_freq, uint32_t stop_freq, uint32_t 
 #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
         // 低电流
         adc_hvli_input_conv(128);
+        is_over_current((uint16_t)adc_dc_lcur_avg, ENABLE);
         hvol = adc_dc_hvol_avg;
         lcur = adc_dc_lcur_avg;
         freq_pwr[index] = hvol * lcur;
-        printf("hvol: %.2f lcur: %.2f pwr: %d dac: %.2f ", hvol, lcur, freq_pwr[index], (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)));
+current_freq_scan_end:
+        printf("freq: %d vpp:%.1f duty:%d hvol: %.2f lcur: %.2f pwr: %d dac: %.2f cur:%.2f", freq, (float)vpp, pwm_get_duty(), hvol, lcur, freq_pwr[index], (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)), CUR_CAL(lcur));
 #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
         // 高电流
         adc_hv_input_conv(128);
         hvol = adc_dc_hvol_avg;
         hcur = adc_dc_hcur_avg;
         freq_pwr[index] = hvol * hcur;
-        printf("hvol: %.2f hcur: %.2f pwr: %d dac: %.2f ", hvol, hcur, freq_pwr[index], (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)));
+        printf("freq: %d vpp:%.1f duty:%d hvol: %.2f hcur: %.2f pwr: %d dac: %.2f ", freq, (float)vpp, pwm_get_duty(), hvol, hcur, freq_pwr[index], (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)));
 #endif
 
 #if USE_AIR_FLOWMETER
@@ -674,6 +678,9 @@ void magic_cool_run_impedance(void)
     // adc_output_conv(128);
 
     update_cur = 0;
+
+    // 重置错误标志
+    fault_status = FAULT_NORMAL;
 
 #if KEY_VOL_CFG
     led_always_on = 1;
@@ -752,7 +759,9 @@ void magic_cool_run_impedance(void)
     printf("freq:%d, phase proxth:%f\r\n", magic_cool_runfreq, magic_cool_ph_proxth);
 
 #elif MAGIC_COOL_TRACK_DEFAULT == MAGIC_COOL_TRACK_CURRENT
-    // TODO: 可以来回频率进行震荡，形成最大流量（当前气泵特性）-- 测试无效，陶瓷发热需要一定时间，在该时间内来回震荡并不会缩短时间
+    if( !magic_cool_mode ) {
+        return;
+    }
     find_maxima_i(freq_pwr, len, &magic_cool_pwr_max, &pwr_max_idx);  // 找最大值
 #if 1
     #define SCAN_FREQ_STEP   20  //20 // 50
@@ -770,6 +779,7 @@ void magic_cool_run_impedance(void)
 #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
             // 低电流
             adc_hvli_input_conv(128);
+            is_over_current((uint16_t)adc_dc_lcur_avg, DISABLE);
             hvol = adc_dc_hvol_avg;
             lcur = adc_dc_lcur_avg;
             freq_pwr[i] += hvol * lcur;
@@ -1443,6 +1453,7 @@ uint32_t get_current_pwr(int freq, uint8_t n)
         // ADC采样，同时采样电压电流
 #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW  // 直流高压输入电压,低端电流
         adc_hvli_input_conv(128);
+        is_over_current((uint16_t)adc_dc_lcur_avg, DISABLE);
         pwr += (uint32_t)(adc_dc_hvol_avg * adc_dc_lcur_avg);
 #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH  // 直流高压输入电压,高端电流
         adc_hv_input_conv(128);
@@ -1469,7 +1480,7 @@ void magic_cool_freq_track_current(void)
     int pwr0, pwr1, pwr2;
     uint32_t pwrx = 0;
     uint32_t dc_vol, dc_cur;
-    int pwr_proxth = 9000; //8mW // 11308; //(10mW / 0.0008843037)
+    int pwr_proxth = (int)POWER_PROXTH(10); //10mW // 11308; //(10mW / 0.0008843037)
 
     static uint8_t cnt0 = 0, cnt1 = 0, cnt2 = 0;
     static uint32_t scan_tick = 0;
@@ -1480,6 +1491,7 @@ void magic_cool_freq_track_current(void)
         // ADC采样，同时采样电压电流
 #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW  // 直流高压输入电压,低端电流
         adc_hvli_input_conv(128);
+        is_over_current((uint16_t)adc_dc_lcur_avg, DISABLE);
         dc_vol = adc_dc_hvol_avg;
         dc_cur = adc_dc_lcur_avg;
 #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH  // 直流高压输入电压,高端电流
@@ -1710,7 +1722,7 @@ void magic_cool_freq_track_current(void)
 void magic_cool_freq_track(void)
 {
     static int tick_ph = 50, tick_cur = 100, tick_vol = 1500, tick_imp = 50;
-    int feedback_tick = 10000; // 15000;
+    int feedback_tick = 20000; // 15000;
 #if KEY_VOL_CFG || ENABLE_USART
     if( adjust_target_vol != magic_cool_target_vol ) {
         magic_cool_target_vol = adjust_target_vol;
@@ -1719,8 +1731,6 @@ void magic_cool_freq_track(void)
         sys_delayms(10);
     }
 #endif
-
-    check_fault();
 
 #if MAGIC_COOL_TRACK_DEFAULT == MAGIC_COOL_TRACK_PHASE
    // 相位最小，
@@ -1852,12 +1862,12 @@ void magic_cool_mode2(void)
 #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
         // 低电流
         adc_hvli_input_conv(128);
+        is_over_current((uint16_t)adc_dc_lcur_avg, DISABLE);
         hvol = adc_dc_hvol_avg;
         lcur = adc_dc_lcur_avg;
         // 系数计算: hvol和lcur为adc值，将该值转换为电压电流后简化计算就能得到一个系数
-        power = hvol * lcur * 8.843037 / 1E4; // 0.0008843037
-        // printf("freq:%d, vpp:%0.2f, ipp:%.2f, imp: %.3f phase: %.3f hvol: %.2f lcur: %.2f power:%.2f flow:%d dac:%.2f duty:%d\r\n", freq, vpp, ipp, imp, phase, hvol, lcur, power, flow, (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)), pwm_get_duty());
-        printf("freq:%d, vpp:%0.2f, duty:%ld, hvol: %.2f lcur: %.2f power:%.2f flow:%d dac:%.2f\r\n", freq, vpp, pwm_get_duty(), hvol, lcur, power, flow, (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)));
+        // power = POWER_CAL(hvol, lcur);
+        printf("freq:%d, vpp:%0.2f, duty:%ld, hvol: %.2f lcur: %.2f power:%.2f flow:%d dac:%.2f cur:%.2fmA\r\n", freq, vpp, pwm_get_duty(), hvol, lcur, POWER_CAL(hvol, lcur), flow, (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)), CUR_CAL(lcur));
 #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
         // 高电流
         adc_hv_input_conv(128);
@@ -1917,6 +1927,7 @@ void magic_cool_config(void)
 
     flow_freq_cfg_init();
 
+// 零点校准
 #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
     adc_hvli_input_conv(128);
 #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH

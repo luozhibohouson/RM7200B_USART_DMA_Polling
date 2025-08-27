@@ -45,6 +45,12 @@ extern float adc_dc_hvol_avg;  // 直流高压电压
 extern float adc_dc_hcur_avg;  // 直流高压电流
 extern float adc_dc_lcur_avg;  // 直流低压电流
 
+#if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
+extern uint16_t adc_dc_hcur_offset;
+#elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
+extern uint16_t adc_dc_lcur_offset;
+#endif
+
 
 #ifdef MAGIC_COOL_VPP_RMS
 extern float adc_vrms;  // 交流电压有效

@@ -27,6 +27,7 @@ static protocol_fault_t fault_code_to_report = FAULT_NORMAL;
 #define FAULT_REPORT_TIMEOUT_MS 1000
 
 void usart_fault_report_process(void);
+void clear_fault_report(void);
 /***********************************************************************************************************************
   * @brief
   * @note   none
@@ -351,6 +352,7 @@ static void handle_flow_adjust_cmd(uint8_t *data, uint16_t data_len)
             extern void magic_cool_set_target_vol_by_flow(uint8_t flow_level);
             magic_cool_set_target_vol_by_flow(flow_level);
             current_flow_level = flow_level;
+            clear_fault_report();
         } else {
             error_code = ERR_INVALID_PARAM;
         }
@@ -384,8 +386,8 @@ static void handle_deep_sleep_cmd(uint8_t *data, uint16_t data_len)
             error_code = ERR_INVALID_PARAM;
         } else {
             error_code = ERR_SUCCESS;
-            extern uint8_t magic_cool_mode;
-            magic_cool_mode = 0;
+            extern void close_all_output(void);
+            close_all_output();
         }
     }
 
@@ -624,6 +626,10 @@ void usart_fault_report_process(void)
     }
 }
 
+void clear_fault_report(void)
+{
+    fault_code_to_report = FAULT_NORMAL;
+}
 
 
 

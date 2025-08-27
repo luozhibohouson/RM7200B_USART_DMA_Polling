@@ -28,7 +28,11 @@ float adc_dc_hvol_avg = 0.0;  // 直流高压电压
 float adc_dc_hcur_avg = 0.0;  // 直流高压电流
 float adc_dc_lcur_avg = 0.0;  // 直流低压电流
 
+#if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
+uint16_t adc_dc_hcur_offset = 0;
+#elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
 uint16_t adc_dc_lcur_offset = 0;
+#endif
 
 /***********************************************************************************************************************
   * @brief
@@ -392,7 +396,13 @@ void adc_hv_input_conv(int num)  // 直流高压输入电压电流
 
     adc_dc_hvol_avg = vol_sum / num;
     adc_dc_hcur_avg = cur_sum / num;
-    adc_dc_hcur_avg -=  1271;
+    // adc_dc_hcur_avg -=  1271;
+
+    if( !adc_dc_hcur_offset ) {
+        adc_dc_hcur_offset = (uint16_t)adc_dc_hcur_avg;
+        printf("adc_dc_hcur_offset:%d\r\n", adc_dc_hcur_offset);
+    }
+    adc_dc_hcur_avg -= adc_dc_hcur_offset;
 }
 #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
 void adc_hvli_input_conv(int num)  // 直流高压输入电压,低端电流

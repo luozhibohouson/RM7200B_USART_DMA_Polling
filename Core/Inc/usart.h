@@ -85,6 +85,7 @@ typedef enum {
     FAULT_OVER_VOLTAGE    = 0x01,  // 过压（主动上报）
     FAULT_OVER_CURRENT    = 0x02,  // 过流（主动上报）
     FAULT_SETTING_FAILED  = 0x03,  // 调档失败（主动上报）
+    FAULT_PUMP_NOT_WORK   = 0x04,  // 泵未工作（主动上报）
     FAULT_QUERY_CMD       = 0xFF   // 查询指令
 } protocol_fault_t;
 
