@@ -1,5 +1,10 @@
 #include "usart.h"
+#include "usart1.h"
 #include "main.h"
+
+#ifndef ENABLE_QUERY_CMD
+  #define ENABLE_QUERY_CMD 0
+#endif
 
 uint32_t uart_rx_flag = 0;
 uint32_t uart_rx_len = 0;
@@ -475,7 +480,7 @@ static void handle_system_upgrade_cmd(uint8_t *data, uint16_t data_len)
  * @param frame_data 帧数据（指令+数据长度+数据）
  * @param frame_len 帧数据长度
  */
-void usart_handle_command(uint8_t *frame_data, uint16_t frame_len)
+void usart_handle_protocol_command(uint8_t *frame_data, uint16_t frame_len)
 {
     if (frame_data == NULL || frame_len < 3) {
         return;
@@ -523,6 +528,346 @@ void usart_handle_command(uint8_t *frame_data, uint16_t frame_len)
     }
 }
 
+bool protocol_cmd_process(void)
+{
+    // 检查最小帧长度: 帧头(1) + 指令(1) + 长度(2) + CRC(2) + 帧尾(2) = 8字节
+    if (uart_rx_len < PROTOCOL_MIN_FRAME_SIZE) {
+        return false;
+    }
+
+    // 检查帧头和帧尾
+    if ((uart_cmd[0] == PROTOCOL_FRAME_HEAD) &&
+        (uart_cmd[uart_rx_len-2] == PROTOCOL_FRAME_TAIL1) &&
+        (uart_cmd[uart_rx_len-1] == PROTOCOL_FRAME_TAIL2)) {
+
+        // 解析协议: 帧头(1) + 指令(1) + 数据长度(2) + 数据(N) + CRC16(2) + 帧尾(2)
+        uint8_t cmd = uart_cmd[1];
+        uint16_t data_len = (uart_cmd[2] << 8) | uart_cmd[3];  // 大端序
+
+        // 验证数据长度是否合理
+        if (uart_rx_len != (PROTOCOL_MIN_FRAME_SIZE + data_len)) {  // 帧头+指令+长度+数据+CRC+帧尾
+            uint8_t error_code = ERR_INVALID_LENGTH;
+            usart_send_frame(cmd, &error_code, 1);
+            return false;
+        }
+
+        // 获取CRC16校验值 (在帧尾前2字节)
+        uint16_t received_crc = (uart_cmd[uart_rx_len-4] << 8) | uart_cmd[uart_rx_len-3];
+
+        // 计算CRC16: 对指令+数据长度+数据进行校验
+        uint8_t *crc_data = &uart_cmd[1];  // 从指令开始
+        uint16_t crc_len = 1 + 2 + data_len;  // 指令(1) + 长度(2) + 数据(data_len)
+        uint16_t calculated_crc = crc16(crc_data, crc_len);
+
+        if (calculated_crc == received_crc) {
+            // 校验正确，处理命令
+            // 传递给bootloader处理: 指令+数据长度+数据
+            usart_handle_protocol_command(&uart_cmd[1], crc_len);
+        } else {
+            // CRC校验错误，发送错误应答
+            uint8_t error_code = ERR_INVALID_CRC;
+            usart_send_frame(cmd, &error_code, 1);
+            return false;
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
+#if ENABLE_QUERY_CMD
+
+static uint8_t usart_send_query_frame(uint8_t cmd, uint8_t *data, uint16_t data_len)
+{
+    uint8_t tx_buffer[QUERY_MIN_FRAME_SIZE + 9];  // 足够容纳任何响应帧：帧头(1)+指令(1)+长度(1)+数据(3)+CRC(2)+帧尾(2)=11字节
+    uint16_t frame_len = 0;
+
+    // 检查数据长度，bootloader响应数据应该很小
+    if (data_len > QUERY_CMD_RESPONSE_MAX_DATA_LEN) {
+        return 1;  // 响应数据过长
+    }
+
+    // 构建协议帧: 帧头(1) + 指令(1) + 数据长度(1) + 数据(N) + CRC16(2) + 帧尾(2)
+    tx_buffer[frame_len++] = QUERY_FRAME_HEAD_REPLY;     // 帧头
+    tx_buffer[frame_len++] = cmd;                     // 指令
+    // tx_buffer[frame_len++] = (data_len >> 8) & 0xFF; // 数据长度高字节
+    tx_buffer[frame_len++] = data_len & 0xFF;         // 数据长度低字节
+
+    // 添加数据
+    if (data != NULL && data_len > 0) {
+        memcpy(&tx_buffer[frame_len], data, data_len);
+        frame_len += data_len;
+    }
+
+    // 计算CRC16 (对指令+数据长度+数据进行校验)
+    uint16_t crc = crc16(&tx_buffer[1], 1 + 1 + data_len);
+    tx_buffer[frame_len++] = (crc >> 8) & 0xFF;      // CRC16高字节
+    tx_buffer[frame_len++] = crc & 0xFF;             // CRC16低字节
+
+    // 帧尾
+    tx_buffer[frame_len++] = QUERY_FRAME_TAIL1_REPLY;   // 帧尾
+    tx_buffer[frame_len++] = QUERY_FRAME_TAIL2_REPLY;   // 帧尾
+
+    // 发送数据
+    usart_transmit(tx_buffer, frame_len);
+
+    return 0;
+}
+
+static void handle_query_get_version_cmd(uint8_t *data, uint16_t data_len)
+{
+    uint8_t response_data[4] = {0};
+    uint8_t error_code = QUERY_ERR_SUCCESS;
+
+    // 验证数据长度
+    if (data_len != QUERY_CMD_GET_VERSION_DATA_LEN) {
+        error_code = QUERY_ERR_INVALID_LENGTH;
+    } else {
+        error_code = QUERY_ERR_SUCCESS;
+
+        extern char* get_app_version(void);
+        extern char* get_hardware_version(void);
+
+        char* app_version = get_app_version();
+        char* hardware_version = get_hardware_version();
+        response_data[0] = hardware_version[0] - '0'; // 硬件版本只有1个字节
+        response_data[1] = app_version[0] - '0';
+        response_data[2] = app_version[1] - '0';
+        response_data[3] = error_code;
+    }
+
+    // 发送响应
+    usart_send_query_frame(QUERY_CMD_GET_VERSION, response_data, sizeof(response_data));
+}
+
+
+/**
+ * @brief 处理调流量指令
+ * @param data 数据指针
+ * @param data_len 数据长度
+ */
+static void handle_query_flow_adjust_cmd(uint8_t *data, uint16_t data_len)
+{
+    uint8_t error_code = QUERY_ERR_SUCCESS;
+    uint8_t response_data[2] = {0};
+    extern uint8_t current_flow_level;
+
+    // 验证数据长度（应该是1字节：流量等级）
+    if (data_len != QUERY_CMD_FLOW_ADJUST_DATA_LEN) {
+        error_code = QUERY_ERR_INVALID_LENGTH;
+        // 发送错误响应
+        usart_send_query_frame(QUERY_CMD_FLOW_ADJUST, &error_code, 1);
+        return;
+    }
+
+    uint8_t flow_level = data[0];
+
+    if (flow_level == FLOW_QUERY_CMD) {
+        // 查询当前档位
+        response_data[0] = current_flow_level;
+        response_data[1] = QUERY_ERR_SUCCESS;
+        usart_send_query_frame(QUERY_CMD_FLOW_ADJUST, response_data, 2);
+    } else {
+        // 设置流量档位
+        if (flow_level >= FLOW_LEVEL_50_PERCENT && flow_level <= FLOW_LEVEL_100_PERCENT) {
+            error_code = QUERY_ERR_SUCCESS;
+            extern void magic_cool_set_target_vol_by_flow(uint8_t flow_level);
+            magic_cool_set_target_vol_by_flow(flow_level);
+            current_flow_level = flow_level;
+            clear_fault_report();
+        }else {
+            error_code = QUERY_ERR_INVALID_PARAM;
+        }
+
+        response_data[0] = current_flow_level;
+        response_data[1] = error_code;
+
+        if( flow_level != 0xfe ) { // fe指令只有内部测试时才有，方便关闭输出
+            // 发送响应
+            usart_send_query_frame(QUERY_CMD_FLOW_ADJUST, response_data, 2);
+        } else {
+            extern void close_all_output(void);
+            close_all_output();
+        }
+    }
+}
+
+static void handle_query_max_vol_cur_cmd(uint8_t *data, uint16_t data_len)
+{
+    uint8_t error_code = QUERY_ERR_SUCCESS;
+    uint8_t response_data[9] = {0};
+    uint32_t max_vol = 0;
+    uint32_t max_cur = 0;
+
+    extern uint32_t get_max_vol(void);
+    extern uint32_t get_max_cur(void);
+
+    max_vol = get_max_vol();
+    max_cur = get_max_cur();
+
+    response_data[0] = (max_vol >> 24) & 0xFF;
+    response_data[1] = (max_vol >> 16) & 0xFF;
+    response_data[2] = (max_vol >> 8) & 0xFF;
+    response_data[3] = max_vol & 0xFF;
+    response_data[4] = (max_cur >> 24) & 0xFF;
+    response_data[5] = (max_cur >> 16) & 0xFF;
+    response_data[6] = (max_cur >> 8) & 0xFF;
+    response_data[7] = max_cur & 0xFF;
+    response_data[8] = error_code;
+
+    usart_send_query_frame(QUERY_CMD_QUERY_MAX_VOL_CUR, response_data, sizeof(response_data));
+}
+
+static void handle_query_current_vol_cur_cmd(uint8_t *data, uint16_t data_len)
+{
+    uint8_t error_code = QUERY_ERR_SUCCESS;
+    uint8_t response_data[9] = {0};
+    uint32_t current_vol = 0;
+    uint32_t current_cur = 0;
+
+    extern uint32_t get_current_vol(void);
+    extern uint32_t get_current_cur(void);
+
+    current_vol = get_current_vol();
+    current_cur = get_current_cur();
+
+    response_data[0] = (current_vol >> 24) & 0xFF;
+    response_data[1] = (current_vol >> 16) & 0xFF;
+    response_data[2] = (current_vol >> 8) & 0xFF;
+    response_data[3] = current_vol & 0xFF;
+    response_data[4] = (current_cur >> 24) & 0xFF;
+    response_data[5] = (current_cur >> 16) & 0xFF;
+    response_data[6] = (current_cur >> 8) & 0xFF;
+    response_data[7] = current_cur & 0xFF;
+    response_data[8] = error_code;
+
+    usart_send_query_frame(QUERY_CMD_QUERY_CURRENT_VOL_CUR, response_data, sizeof(response_data));
+}
+
+static void handle_query_fault_report_cmd(uint8_t *data, uint16_t data_len)
+{
+    uint8_t error_code = ERR_SUCCESS;
+    uint8_t response_data[2] = {0};
+
+    // 验证数据长度（应该是1字节：故障查询或故障代码）
+    if (data_len != CMD_FAULT_REPORT_DATA_LEN) {
+        error_code = ERR_INVALID_LENGTH;
+        usart_send_query_frame(QUERY_CMD_FAULT_REPORT, &error_code, 1);
+        return;
+    }
+
+    uint8_t fault_query = data[0];
+
+    if (fault_query == QUERY_CMD_QUERY_FAULT_REPORT) {
+        // 查询故障代码
+        response_data[0] = fault_code_to_report;
+        response_data[1] = ERR_SUCCESS;
+        usart_send_query_frame(QUERY_CMD_FAULT_REPORT, response_data, 2);
+    } else {
+        // 这个函数主要是主动上报故障，通过别的函数调用，这里只处理查询
+        // 收到主机的响应，说明主机已经知道故障了，就不再上报了
+        fault_report_state = FAULT_REPORT_STATE_IDLE;
+        fault_report_retry_count = 0;
+    }
+}
+
+static void usart_handle_query_command(uint8_t *frame_data, uint16_t frame_len)
+{
+    if (frame_data == NULL || frame_len < 3) {
+        return;
+    }
+
+    uint8_t cmd = frame_data[0];
+    uint16_t data_len = (frame_data[1] << 8) | frame_data[2];
+    uint8_t *data = &frame_data[3];
+
+    // 验证数据长度一致性
+    if (frame_len != (PROTOCOL_FRAME_HEAD_TAIL_SIZE + data_len)) {
+        uint8_t error_code = ERR_INVALID_LENGTH;
+        usart_send_query_frame(cmd, &error_code, 1);
+        return;
+    }
+
+    // 上位机程序处理所有指令
+    switch (cmd) {
+        case QUERY_CMD_GET_VERSION:
+            handle_query_get_version_cmd(data, data_len);
+            break;
+
+        case QUERY_CMD_FLOW_ADJUST:
+            handle_query_flow_adjust_cmd(data, data_len);
+            break;
+
+        case QUERY_CMD_QUERY_MAX_VOL_CUR:
+            handle_query_max_vol_cur_cmd(data, data_len);
+            break;
+
+        case QUERY_CMD_QUERY_CURRENT_VOL_CUR:
+            handle_query_current_vol_cur_cmd(data, data_len);
+            break;
+
+        case QUERY_CMD_FAULT_REPORT:
+            handle_query_fault_report_cmd(data, data_len);
+            break;
+
+        default: {
+                uint8_t error_code = QUERY_ERR_INVALID_CMD;
+                usart_send_query_frame(cmd, &error_code, 1);
+            }
+            break;
+    }
+}
+
+bool query_cmd_process(void)
+{
+    // 检查最小帧长度: 帧头(1) + 指令(1) + 长度(2) + CRC(2) + 帧尾(2) = 8字节
+    if (uart_rx_len < QUERY_MIN_FRAME_SIZE) {
+        return false;
+    }
+
+    // 检查帧头和帧尾
+    if ((uart_cmd[0] == QUERY_FRAME_HEAD) &&
+        (uart_cmd[uart_rx_len-2] == QUERY_FRAME_TAIL1) &&
+        (uart_cmd[uart_rx_len-1] == QUERY_FRAME_TAIL2)) {
+
+        // 解析协议: 帧头(1) + 指令(1) + 数据长度(2) + 数据(N) + CRC16(2) + 帧尾(2)
+        uint8_t cmd = uart_cmd[1];
+        uint16_t data_len = (uart_cmd[2] << 8) | uart_cmd[3];  // 大端序
+
+        // 验证数据长度是否合理
+        if (uart_rx_len != (QUERY_MIN_FRAME_SIZE + data_len)) {  // 帧头+指令+长度+数据+CRC+帧尾
+            uint8_t error_code = ERR_INVALID_LENGTH;
+            usart_send_query_frame(cmd, &error_code, 1);
+            return false;
+        }
+
+        // 获取CRC16校验值 (在帧尾前2字节)
+        uint16_t received_crc = (uart_cmd[uart_rx_len-4] << 8) | uart_cmd[uart_rx_len-3];
+
+        // 计算CRC16: 对指令+数据长度+数据进行校验
+        uint8_t *crc_data = &uart_cmd[1];  // 从指令开始
+        uint16_t crc_len = 1 + 2 + data_len;  // 指令(1) + 长度(2) + 数据(data_len)
+        uint16_t calculated_crc = crc16(crc_data, crc_len);
+
+        if (calculated_crc == received_crc) {
+            // 校验正确，处理命令
+            // 传递给上位机处理: 指令+数据长度+数据
+            usart_handle_query_command(&uart_cmd[1], crc_len);
+        } else {
+            // CRC校验错误，发送错误应答
+            uint8_t error_code = ERR_INVALID_CRC;
+            usart_send_query_frame(cmd, &error_code, 1);
+            return false;
+        }
+
+        return true;
+    }
+
+    return false;
+}
+#endif
+
 void uart_cmd_process(void)
 {
     static uint32_t update_tick = 0;
@@ -530,49 +875,11 @@ void uart_cmd_process(void)
     if (uart_rx_flag == 1) {
         memcpy(uart_cmd, uart_rxbuffer, uart_rx_len);
 
-        // 检查最小帧长度: 帧头(1) + 指令(1) + 长度(2) + CRC(2) + 帧尾(2) = 8字节
-        if (uart_rx_len < PROTOCOL_MIN_FRAME_SIZE) {
-            uart_rx_flag = 0;
-            uart_rx_len = 0;
-            return;
-        }
+        protocol_cmd_process();
 
-        // 检查帧头和帧尾
-        if ((uart_cmd[0] == PROTOCOL_FRAME_HEAD) &&
-            (uart_cmd[uart_rx_len-2] == PROTOCOL_FRAME_TAIL1) &&
-            (uart_cmd[uart_rx_len-1] == PROTOCOL_FRAME_TAIL2)) {
-
-            // 解析协议: 帧头(1) + 指令(1) + 数据长度(2) + 数据(N) + CRC16(2) + 帧尾(2)
-            uint8_t cmd = uart_cmd[1];
-            uint16_t data_len = (uart_cmd[2] << 8) | uart_cmd[3];  // 大端序
-
-            // 验证数据长度是否合理
-            if (uart_rx_len != (PROTOCOL_MIN_FRAME_SIZE + data_len)) {  // 帧头+指令+长度+数据+CRC+帧尾
-                uart_rx_flag = 0;
-                uart_rx_len = 0;
-                uint8_t error_code = ERR_INVALID_LENGTH;
-                usart_send_frame(cmd, &error_code, 1);
-                return;
-            }
-
-            // 获取CRC16校验值 (在帧尾前2字节)
-            uint16_t received_crc = (uart_cmd[uart_rx_len-4] << 8) | uart_cmd[uart_rx_len-3];
-
-            // 计算CRC16: 对指令+数据长度+数据进行校验
-            uint8_t *crc_data = &uart_cmd[1];  // 从指令开始
-            uint16_t crc_len = 1 + 2 + data_len;  // 指令(1) + 长度(2) + 数据(data_len)
-            uint16_t calculated_crc = crc16(crc_data, crc_len);
-
-            if (calculated_crc == received_crc) {
-                // 校验正确，处理命令
-                // 传递给bootloader处理: 指令+数据长度+数据
-                usart_handle_command(&uart_cmd[1], crc_len);
-            } else {
-                // CRC校验错误，发送错误应答
-                uint8_t error_code = ERR_INVALID_CRC;
-                usart_send_frame(cmd, &error_code, 1);
-            }
-        }
+        #if ENABLE_QUERY_CMD
+          query_cmd_process();
+        #endif
 
         uart_rx_flag = 0;
         uart_rx_len = 0;
@@ -601,7 +908,11 @@ void fault_report_active(protocol_fault_t fault_code)
     fault_report_retry_count = 0;
 
     // 立即发送第一次
+#if !ENABLE_QUERY_CMD
     usart_send_frame(CMD_FAULT_REPORT, (uint8_t*)&fault_code_to_report, 1);
+#else
+    usart_send_query_frame(QUERY_CMD_FAULT_REPORT, (uint8_t*)&fault_code_to_report, 1);
+#endif
     extern uint32_t get_systick(void);
     fault_report_timeout = get_systick() + FAULT_REPORT_TIMEOUT_MS;
     fault_report_retry_count++;
@@ -614,7 +925,11 @@ void usart_fault_report_process(void)
         if (get_systick() >= fault_report_timeout) {
             if (fault_report_retry_count < FAULT_REPORT_MAX_RETRIES) {
                 // 超时，重试
-                usart_send_frame(CMD_FAULT_REPORT, (uint8_t*)&fault_code_to_report, 1);
+                #if !ENABLE_QUERY_CMD
+                  usart_send_frame(CMD_FAULT_REPORT, (uint8_t*)&fault_code_to_report, 1);
+                #else
+                  usart_send_query_frame(QUERY_CMD_FAULT_REPORT, (uint8_t*)&fault_code_to_report, 1);
+                #endif
                 fault_report_timeout = get_systick() + FAULT_REPORT_TIMEOUT_MS;
                 fault_report_retry_count++;
             } else {

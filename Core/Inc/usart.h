@@ -85,7 +85,7 @@ typedef enum {
     FAULT_OVER_VOLTAGE    = 0x01,  // 过压（主动上报）
     FAULT_OVER_CURRENT    = 0x02,  // 过流（主动上报）
     FAULT_SETTING_FAILED  = 0x03,  // 调档失败（主动上报）
-    FAULT_PUMP_NOT_WORK   = 0x04,  // 泵未工作（主动上报）
+    FAULT_NOT_LOAD        = 0x04,  // 空载（主动上报）
     FAULT_QUERY_CMD       = 0xFF   // 查询指令
 } protocol_fault_t;
 
@@ -117,14 +117,12 @@ void usart_callback(void);
 /* 协议处理函数声明 */
 uint16_t crc16(uint8_t* buff, uint32_t len);
 uint8_t usart_send_frame(uint8_t cmd, uint8_t *data, uint16_t data_len);
-void usart_handle_command(uint8_t *frame_data, uint16_t frame_len);
+void usart_handle_protocol_command(uint8_t *frame_data, uint16_t frame_len);
 void uart_cmd_process(void);
 void usart_transmit(uint8_t *buf, uint32_t len);
 
 /* 故障处理函数声明 */
 void fault_report_active(protocol_fault_t fault_code);
-protocol_fault_t get_current_fault_status(void);
-void handle_wakeup_command(uint8_t *data, uint16_t len);
 
 /* 全局变量声明 */
 extern uint8_t current_flow_level;

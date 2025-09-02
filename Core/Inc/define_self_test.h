@@ -9,16 +9,16 @@
     #define     VOL_TARGET_60P  38
     #define     VOL_TARGET_50P  35
 #else
-    #define     VOL_TARGET      50 //40  // 流量目标
+    #define     VOL_TARGET      40 //40  // 流量目标
     #define     VOL_TARGET_90P  37 //37
     #define     VOL_TARGET_80P  34 //35
     #define     VOL_TARGET_70P  31 //33
     #define     VOL_TARGET_60P  28 //30
     #define     VOL_TARGET_50P  25 //27
-
-    // 最大电压，超过停止输出
-    #define     VOL_TARGET_MAX  (VOL_TARGET+10)
 #endif
+
+// 最大电压，超过停止输出
+#define     VOL_TARGET_MAX  (VOL_TARGET+10)
 
 // 泵频
 #define PUMP_FREQ                  25200
@@ -38,7 +38,7 @@
 #define PWM_DRIVER_METHOD          PWM_DIFFERENTIAL_DRIVE
 
 // 供电选择
-#define MCU_VDD                    MCU_VDD_3V0
+#define MCU_VDD                    MCU_VDD_3V3
 #if MCU_VDD == MCU_VDD_3V3
   #define MCU_VDD_GAIN             3.3
   #define MCU_VDD_GAIN_10X         33
@@ -102,13 +102,16 @@
 
 // 功能开关
 // 按键调整电压
-#define KEY_VOL_CFG                 1
+#define KEY_VOL_CFG                 0
 
 // 打印开关
-#define ENABLE_PRINTF               1
+#define ENABLE_PRINTF               0
 
 // 串口通讯开关
-#define ENABLE_USART                0
+#define ENABLE_USART                1
+
+// 查询指令开关 -- 仅在内部测试时使用，客户版本禁止开启该宏
+#define ENABLE_QUERY_CMD            1
 
 #endif
 

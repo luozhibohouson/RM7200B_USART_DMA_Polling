@@ -86,7 +86,6 @@
 // 电流计算参数
 #define CURRENT_ADC_MAX             4000 // 不好计算，直接取ADC的最大值
 
-
 // 功能开关
 // 按键调整电压
 #define KEY_VOL_CFG                 0
