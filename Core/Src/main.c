@@ -82,8 +82,12 @@ void app_upgrade_success(void)
     }
 
     app_info.app_success = APP_SUCCESS_FLAG;
-    strncpy(app_info.app_version, APP_VERSION, sizeof(app_info.app_version));
-    strncpy(app_info.hardware_version, HARDWARE_VERSION, sizeof(app_info.hardware_version));
+    // strncpy(app_info.app_version, APP_VERSION, sizeof(app_info.app_version));
+    // strncpy(app_info.hardware_version, HARDWARE_VERSION, sizeof(app_info.hardware_version));
+    app_info.app_version[0] = APP_VERSION[0]-'0';
+    app_info.app_version[1] = APP_VERSION[1]-'0';
+    app_info.hardware_version[0] = HARDWARE_VERSION[0]-'0';
+    app_info.hardware_version[1] = 0;
 
     flash_erase_page((uint16_t)(PARAM_START_ADDR / FLASH_PAGE_SIZE));
     flash_write_halfword(PARAM_START_ADDR, (uint16_t*)&app_info, sizeof(app_info));

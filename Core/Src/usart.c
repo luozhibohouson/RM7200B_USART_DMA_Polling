@@ -313,9 +313,9 @@ static void handle_get_version_cmd(uint8_t *data, uint16_t data_len)
 
         char* app_version = get_app_version();
         char* hardware_version = get_hardware_version();
-        response_data[0] = hardware_version[0] - '0'; // 硬件版本只有1个字节
-        response_data[1] = app_version[0] - '0';
-        response_data[2] = app_version[1] - '0';
+        response_data[0] = hardware_version[0]; // 硬件版本只有1个字节
+        response_data[1] = app_version[0];
+        response_data[2] = app_version[1];
         response_data[3] = error_code;
     }
 

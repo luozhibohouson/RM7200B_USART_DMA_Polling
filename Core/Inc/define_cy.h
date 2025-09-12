@@ -24,8 +24,8 @@
 
 // 泵频
 // #define PUMP_FREQ                  25200
-#define FREQ_MIN                   23600 // (PUMP_FREQ - 300)
-#define FREQ_MAX                   26300 // (PUMP_FREQ + 300)
+#define FREQ_MIN                   23000 // (PUMP_FREQ - 300)
+#define FREQ_MAX                   25000 // (PUMP_FREQ + 300)
 
 // 硬件版本
 #define HW_V1_0                    "1"
@@ -33,7 +33,7 @@
 #define HARDWARE_VERSION           HW_V1_0
 
 // 软件版本
-#define APP_VERSION                "12" //V1.2
+#define APP_VERSION                "14" //V1.4
 
 // 驱动方式 - 差分/单端驱动
 #define PWM_DRIVER_METHOD          PWM_DIFFERENTIAL_DRIVE
@@ -84,7 +84,22 @@
 #define PWM1_MAX_POWER_DUTY         ((HSI_VALUE/PWM1_FREQ*MCU_VDD_MIN_GAIN_10X/MCU_VDD_GAIN_10X))
 
 // 电流计算参数
-#define CURRENT_ADC_MAX             4000 // 不好计算，直接取ADC的最大值
+#define CURRENT_ADC_MAX_TEST        137 //10mA -- 过流测试使用
+#define CURRENT_ADC_MAX             (4000 - adc_dc_lcur_offset) // (2 * 4096 * 11 / MCU_VDD_GAIN_10X) //0.2A * 4096 * 11 / 3.3 = 2730
+#define CURRENT_ADC_MIN             15 // 15 //DISABLE 为0则关闭空载检测
+
+#if MCU_VDD == MCU_VDD_3V3
+  #define CURRENT_COEFFICIENT        (0.07324)
+  #define VOL_H_COEFFICIENT          (0.01207)
+#elif MCU_VDD == MCU_VDD_3V0
+  #define CURRENT_COEFFICIENT        (0.06658)
+  #define VOL_H_COEFFICIENT          (0.01098)
+#endif
+
+#define CUR_CAL(cur_ad)             (cur_ad * CURRENT_COEFFICIENT) // (3.3*AD/4096/11)*1000  已放大1000倍 -> 单位为mA
+#define VOL_H_CAL(vol_ad)           (vol_ad * VOL_H_COEFFICIENT)   // 3.3*AD/4096/0.0667
+#define POWER_CAL(vol_ad, cur_ad)   (VOL_H_CAL(vol_ad) * CUR_CAL(cur_ad))
+#define POWER_PROXTH(pwr)           (pwr / (CURRENT_COEFFICIENT * VOL_H_COEFFICIENT))
 
 // 功能开关
 // 按键调整电压

@@ -2,28 +2,33 @@
 #define __DEFINE_SELF_TEST_H
 
 #if 0
-    #define     VOL_TARGET      50  // 流量目标
-    #define     VOL_TARGET_90P  47
-    #define     VOL_TARGET_80P  44
-    #define     VOL_TARGET_70P  41
-    #define     VOL_TARGET_60P  38
-    #define     VOL_TARGET_50P  35
+  #define     VOL_TARGET      50  // 流量目标
+  #define     VOL_TARGET_90P  47
+  #define     VOL_TARGET_80P  44
+  #define     VOL_TARGET_70P  41
+  #define     VOL_TARGET_60P  38
+  #define     VOL_TARGET_50P  35
 #else
-    #define     VOL_TARGET      40 //40  // 流量目标
-    #define     VOL_TARGET_90P  37 //37
-    #define     VOL_TARGET_80P  34 //35
-    #define     VOL_TARGET_70P  31 //33
-    #define     VOL_TARGET_60P  28 //30
-    #define     VOL_TARGET_50P  25 //27
+  #define     VOL_TARGET      40 //40  // 流量目标
+  #define     VOL_TARGET_90P  37 //37
+  #define     VOL_TARGET_80P  34 //35
+  #define     VOL_TARGET_70P  31 //33
+  #define     VOL_TARGET_60P  28 //30
+  #define     VOL_TARGET_50P  25 //27
 #endif
-
 // 最大电压，超过停止输出
-#define     VOL_TARGET_MAX  (VOL_TARGET+10)
+#define     VOL_TARGET_MAX    (VOL_TARGET+10)
+
 
 // 泵频
-#define PUMP_FREQ                  25200
-#define FREQ_MIN                   27000 // (PUMP_FREQ - 500)
-#define FREQ_MAX                   29000 // (PUMP_FREQ + 500)
+#define PUMP_FREQ                  24100
+#if 1
+  #define FREQ_MIN                   23000
+  #define FREQ_MAX                   25000
+#else
+  #define FREQ_MIN                   (PUMP_FREQ - 500)
+  #define FREQ_MAX                   (PUMP_FREQ + 500)
+#endif
 
 // 硬件版本
 // V1.1对比V1.0,增加了dc升压芯片的控制引脚,已做兼容
@@ -85,14 +90,16 @@
 // 电流计算参数
 #define CURRENT_ADC_MAX_TEST        137 //10mA -- 过流测试使用
 #define CURRENT_ADC_MAX             (4000 - adc_dc_lcur_offset) // (2 * 4096 * 11 / MCU_VDD_GAIN_10X) //0.2A * 4096 * 11 / 3.3 = 2730
-#define CURRENT_ADC_MIN             15
+#define CURRENT_ADC_MIN             15 // 15 //DISABLE 为0则关闭空载检测
 
 #if MCU_VDD == MCU_VDD_3V3
   #define CURRENT_COEFFICIENT        (0.07324)
   #define VOL_H_COEFFICIENT          (0.01207)
+  // 0.07324 * 0.01207 = 0.0008843037
 #elif MCU_VDD == MCU_VDD_3V0
   #define CURRENT_COEFFICIENT        (0.06658)
   #define VOL_H_COEFFICIENT          (0.01098)
+  // 0.06658 * 0.01098 = 0.0007310484
 #endif
 
 #define CUR_CAL(cur_ad)             (cur_ad * CURRENT_COEFFICIENT) // (3.3*AD/4096/11)*1000  已放大1000倍 -> 单位为mA
@@ -105,13 +112,13 @@
 #define KEY_VOL_CFG                 0
 
 // 打印开关
-#define ENABLE_PRINTF               0
+#define ENABLE_PRINTF               1
 
 // 串口通讯开关
-#define ENABLE_USART                1
+#define ENABLE_USART                0
 
 // 查询指令开关 -- 仅在内部测试时使用，客户版本禁止开启该宏
-#define ENABLE_QUERY_CMD            1
+#define ENABLE_QUERY_CMD            0
 
 #endif
 

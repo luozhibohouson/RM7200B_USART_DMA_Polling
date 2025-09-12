@@ -14,8 +14,8 @@
 
 // 客户选择
 #define Self_Test       0   //自测
-#define CY_ChuanYi      1   //传音
-#define AK_Anker        2   //安克
+#define CY_ChuanYi      1   //传音 -- 衡山项目
+#define AK_Anker        2   //安克 -- 天山项目
 #define RY_Honor        3   //荣耀
 #define XM_Xiaomi       4   //小米
 
