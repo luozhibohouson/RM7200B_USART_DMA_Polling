@@ -68,7 +68,8 @@ bool reset_time_flag = false;
 #if KEY_VOL_CFG
 volatile uint8_t led_always_on = 0;
 #endif
-volatile uint8_t scan_freq_enable;
+bool scan_freq_enable = false;
+bool first_scan_freq = false;
 uint16_t magic_cool_vpp = 0;
 
 
@@ -437,39 +438,39 @@ void magic_cool_key_scan(uint8_t key1, uint8_t key2, uint8_t key3)
         #endif
         } else {
         #if KEY_VOL_CFG
-             #if Magic_Cool_Customer == AK_Anker
-               if( adjust_target_vol == 40 ) {
+            #if Magic_Cool_Customer == AK_Anker
+                if( adjust_target_vol == 40 ) {
                     adjust_target_vol = 30;
-               } else if( adjust_target_vol == 30 ) {
+                } else if( adjust_target_vol == 30 ) {
                     adjust_target_vol = 25;
-               } else {
+                } else {
                     adjust_target_vol = 40;
-               }
-             #else
-               // 使用表格驱动法优化电压档位切换
-               const uint8_t voltage_levels[] = {
-                   VOL_TARGET,
-                   VOL_TARGET_90P,
-                   VOL_TARGET_80P,
-                   VOL_TARGET_70P,
-                   VOL_TARGET_60P,
-                   VOL_TARGET_50P,
-               };
-               const uint8_t num_levels = sizeof(voltage_levels) / sizeof(voltage_levels[0]);
-               static uint8_t current_level_index = 0;
+                }
+            #else
+                // 使用表格驱动法优化电压档位切换
+                const uint8_t voltage_levels[] = {
+                    VOL_TARGET,
+                    VOL_TARGET_90P,
+                    VOL_TARGET_80P,
+                    VOL_TARGET_70P,
+                    VOL_TARGET_60P,
+                    VOL_TARGET_50P,
+                };
+                const uint8_t num_levels = sizeof(voltage_levels) / sizeof(voltage_levels[0]);
+                static uint8_t current_level_index = 0;
 
-               // 找到当前电压对应的索引，以防外部直接修改 adjust_target_vol
-               for (uint8_t i = 0; i < num_levels; i++) {
-                   if (adjust_target_vol == voltage_levels[i]) {
-                       current_level_index = i;
-                       break;
-                   }
-               }
+                // 找到当前电压对应的索引，以防外部直接修改 adjust_target_vol
+                for (uint8_t i = 0; i < num_levels; i++) {
+                    if (adjust_target_vol == voltage_levels[i]) {
+                        current_level_index = i;
+                        break;
+                    }
+                }
 
-               // 切换到下一个档位，并循环
-               current_level_index = (current_level_index + 1) % num_levels;
-               adjust_target_vol = voltage_levels[current_level_index];
-             #endif
+                // 切换到下一个档位，并循环
+                current_level_index = (current_level_index + 1) % num_levels;
+                adjust_target_vol = voltage_levels[current_level_index];
+            #endif
         #endif
         }
     } else if (key2 == 0x02) {
@@ -694,11 +695,11 @@ int magic_cool_calc_impedance(uint32_t start_freq, uint32_t stop_freq, uint32_t 
         pwm_set_freq(freq);
         magic_cool_voltage_closeloop(target_vpp, 2, 100, DISABLE);// 电压闭环
         vpp = (magic_cool_vpp+voltage_offset)/voltage_gain;
-        if( vpp <= (VOL_TARGET+4) ) { // 电压过高 直接进行下一个频率
+        if( vpp <= (target_vpp+4) ) { // 电压过高 直接进行下一个频率
             sys_delayms(20);
             magic_cool_voltage_closeloop(target_vpp, 2, 100, DISABLE);// 电压闭环
             vpp = (magic_cool_vpp+voltage_offset)/voltage_gain;
-            if( vpp <= (VOL_TARGET+4) ) {
+            if( vpp <= (target_vpp+4) ) {
                 sys_delayms(200);
             }
         }
@@ -943,13 +944,19 @@ void magic_cool_run_impedance(void)
     #define SCAN_FREQ_STEP   20  //20 // 50
     #define SCAN_FREQ_RANGE  60  //60 // 100
 
+#if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
+    uint32_t target_vpp = VOL_TARGET;
+#else
+    uint32_t target_vpp = VOL_TARGET_70P;
+#endif
+
     freq_min = magic_cool_freqstart + 100 * pwr_max_idx - SCAN_FREQ_RANGE;
 //    freq_max = magic_cool_freqstart + 100 * pwr_max_idx + 250;
     pwr_max_idx = 0;
     freq_pwr[pwr_max_idx] = 0;
     for (i = 0; i < SCAN_FREQ_RANGE*2/SCAN_FREQ_STEP; i++) {  // 扫描前后250Hz 共500Hz范围 步进50Hz，10个点
         pwm_set_freq(freq_min + i * SCAN_FREQ_STEP);
-        magic_cool_voltage_closeloop(magic_cool_target_vol, 2, 100, DISABLE);  // 电压闭环调整，电压误差±2V
+        magic_cool_voltage_closeloop(target_vpp, 2, 100, DISABLE);  // 电压闭环调整，电压误差±2V
         // FIXME:需要不同气泵验证
         if( fault_vol_status == FAULT_NORMAL ) {
             for (cnt = 0; cnt < 10; cnt++) {
@@ -996,7 +1003,7 @@ void magic_cool_run_impedance(void)
 #endif
     // 设置输出频率
     pwm_set_freq(magic_cool_runfreq); // 阻抗谱计算最优频率
-    magic_cool_voltage_closeloop(magic_cool_target_vol, 2, 100, ENABLE);// 电压闭环
+    magic_cool_voltage_closeloop(target_vpp, 2, 100, ENABLE);// 电压闭环
     sys_delayms(200);
 #if KEY_VOL_CFG
     led_always_on = 0;
@@ -1004,7 +1011,8 @@ void magic_cool_run_impedance(void)
 
     flow_freq_cfg_write(magic_cool_runfreq);
 
-    scan_freq_enable = 0;
+    scan_freq_enable = false;
+    first_scan_freq = true;
 }
 
 #if MAGIC_COOL_TRACK_DEFAULT == MAGIC_COOL_TRACK_PHASE   // 相位追频
@@ -1782,11 +1790,11 @@ void magic_cool_freq_track_current(void)
         #if KEY_VOL_CFG
             led_always_on = 0;
         #endif
-            scan_freq_enable = 0;
+            scan_freq_enable = false;
             return;
         }
 #else
-    scan_freq_enable = 0;
+    scan_freq_enable = false;
 #endif
 
     for (i = 0; i < n; i++) {
@@ -1914,7 +1922,11 @@ void magic_cool_freq_track(void)
         // if( adjust_target_vol > magic_cool_target_vol )
         { // 电压从低->高才进行小范围扫频 --- X
           // 经测试，目标电压变化后必须扫频找到合适频率才能守住电压，否则电压会飘高
-            scan_freq_enable = 1;
+            if( adjust_target_vol != VOL_TARGET || first_scan_freq == false ) {
+                scan_freq_enable = true;
+            }
+
+            first_scan_freq = false;
         }
         magic_cool_target_vol = adjust_target_vol;
         magic_cool_voltage_closeloop(magic_cool_target_vol, 2, 50, ENABLE);// 电压闭环
@@ -1936,10 +1948,10 @@ void magic_cool_freq_track(void)
     }
 #elif MAGIC_COOL_TRACK_DEFAULT == MAGIC_COOL_TRACK_CURRENT
     // 电流
-    if (get_systick() >= tick_cur || scan_freq_enable == 1) {
+    if (get_systick() >= tick_cur || scan_freq_enable) {
         magic_cool_freq_track_current();
         tick_cur = get_systick() + feedback_tick;
-        // scan_freq_enable = 0;
+        // scan_freq_enable = false;
     }
 #else  // 其他方式, 待定
 
@@ -1968,16 +1980,13 @@ void magic_cool_set_target_vol_by_flow(uint8_t flow_level)
         case FLOW_LEVEL_50_PERCENT: target_vol = VOL_TARGET_50P; break;
         default: target_vol = VOL_TARGET; break;
     }
-
-    if( target_vol != magic_cool_target_vol ) {
 #if ENABLE_USART
+    if( target_vol != adjust_target_vol ) {
         adjust_target_vol = target_vol;
     }
 
     if( !magic_cool_mode ) {
         magic_cool_mode = 1;
-    }
-#else
     }
 #endif
 }
@@ -2138,6 +2147,8 @@ void magic_cool_config(void)
     pwm1_set_duty(pwm1_duty_out);  // 设置DAC输出DCDC
     set_power_enable(ENABLE);
     magic_cool_mode = 0;
+
+    printf("freq_start:%d, freq_stop:%d\r\n", FREQ_MIN, FREQ_MAX);
 }
 
 void magic_cool_run(void)
