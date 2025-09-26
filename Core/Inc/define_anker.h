@@ -21,9 +21,14 @@
 
 
 // 泵频
-#define PUMP_FREQ                  25500
-#define FREQ_MIN                   24000 // (PUMP_FREQ - 200)
-#define FREQ_MAX                   26000 // (PUMP_FREQ + 200)
+#define PUMP_FREQ                  23300
+#if 1
+  #define FREQ_MIN                   25500
+  #define FREQ_MAX                   27500
+#else
+  #define FREQ_MIN                   (PUMP_FREQ - 500)
+  #define FREQ_MAX                   (PUMP_FREQ + 500)
+#endif
 
 // 硬件版本
 // V1.1对比V1.0,增加了dc升压芯片的控制引脚,已做兼容
@@ -37,7 +42,7 @@
 #define PWM_DRIVER_METHOD          PWM_DIFFERENTIAL_DRIVE
 
 // 供电选择
-#define MCU_VDD                    MCU_VDD_3V0
+#define MCU_VDD                    MCU_VDD_3V3
 #if MCU_VDD == MCU_VDD_3V3
   #define MCU_VDD_GAIN             3.3
   #define MCU_VDD_GAIN_10X         33
@@ -110,9 +115,6 @@
 
 // 串口通讯开关
 #define ENABLE_USART                0
-
-// 查询指令开关 -- 仅在内部测试时使用，客户版本禁止开启该宏
-#define ENABLE_QUERY_CMD            0
 
 #endif
 
