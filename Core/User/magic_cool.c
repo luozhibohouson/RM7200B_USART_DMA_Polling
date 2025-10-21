@@ -282,7 +282,6 @@ static void check_fault_status(void)
                 } else if (get_systick() - fault_start_times[i] >= priority_table[i].delay_ms) {
                     // 持续时间已满足，确认故障
                     current_highest_fault = priority_table[i].fault_code;
-                    fault_start_times[i] = 0;
                     break; // 已找到最高优先级的故障，跳出循环
                 }
                 // 否则，延时未到，继续检查下一个（优先级更低的）故障
@@ -1690,16 +1689,16 @@ void magic_cool_freq_track_current(void)
     uint32_t temp = 0;
     int freq0,freq1,freq2;
     int i,j;
-    int n = 5;
-    int loop_time = 4;
-    int freq_stepx = 20;
+    uint8_t n = 5;
+    uint8_t loop_time = 4;
+    uint8_t freq_stepx = 20;
     int pwr0, pwr1, pwr2;
     uint32_t pwrx = 0;
     uint32_t dc_vol, dc_cur;
 
     #define PWR_PROXTH      ((int)POWER_PROXTH(30))
     #define PWR_PROXTH_MIN  ((int)POWER_PROXTH(15))
-    #define PWR_PROXTH_MAX  ((int)POWER_PROXTH(50))
+    #define PWR_PROXTH_MAX  ((int)POWER_PROXTH(70))
 
     static int pwr_proxth = PWR_PROXTH; //10mW // 11308; //(10mW / 0.0008843037)
 
@@ -1710,17 +1709,20 @@ void magic_cool_freq_track_current(void)
     uint32_t pwr_arr[15] = {0};
 
 #if 1
-    #define FREQ_STEP   40   //50
-    #define FREQ_RANGE  160  //200
+    #define FREQ_NORMAL_STEP   40   //50
+    #define FREQ_NORMAL_RANGE  160  //200
 
-    static uint16_t freq_step = FREQ_STEP;
-    static uint16_t freq_range = FREQ_RANGE;
+    #define FREQ_HIGH_TEMP_STEP   50
+    #define FREQ_HIGH_TEMP_RANGE  250
+
+    static uint16_t freq_step = FREQ_NORMAL_STEP;
+    static uint16_t freq_range = FREQ_NORMAL_RANGE;
 
     if( reset_pwr_proxth_flag ) {
         reset_pwr_proxth_flag = false;
 
-        freq_step = FREQ_STEP;
-        freq_range = FREQ_RANGE;
+        freq_step = FREQ_NORMAL_STEP;
+        freq_range = FREQ_NORMAL_RANGE;
         pwr_proxth = PWR_PROXTH;
         feedback_tick = 20000;
         pwr_proxth_reset_cnt = 0;
@@ -1869,8 +1871,8 @@ void magic_cool_freq_track_current(void)
     if (temp < pwr_proxth) {
         if( feedback_tick == 5000 ) {
             if( ++pwr_proxth_reset_cnt >= 10 ) {
-                freq_step = FREQ_STEP;
-                freq_range = FREQ_RANGE;
+                freq_step = FREQ_NORMAL_STEP;
+                freq_range = FREQ_NORMAL_RANGE;
                 pwr_proxth = PWR_PROXTH;
                 feedback_tick = 20000;
                 pwr_proxth_reset_cnt = 0;
@@ -1880,20 +1882,21 @@ void magic_cool_freq_track_current(void)
                 printf("pwr_proxth_reset_cnt:%d\r\n", pwr_proxth_reset_cnt);
             }
         }
+
         return;
     } else {
         pwr_proxth_reset_cnt = 0;
 
         if( temp >= PWR_PROXTH_MAX ) {
-            pwr_proxth_reset_cnt = 0;
-            scan_freq_enable = true;
-            freq_step = 50;
-            freq_range = 250;
-            pwr_proxth = PWR_PROXTH_MIN;
-            feedback_tick = 5000;
-            printf("scan freq enable:%d feedback_tick:%d\r\n", __LINE__, feedback_tick);
-            return;
-        }
+                            pwr_proxth_reset_cnt = 0;
+                scan_freq_enable = true;
+                freq_step = FREQ_HIGH_TEMP_STEP;
+                freq_range = FREQ_HIGH_TEMP_RANGE;
+                pwr_proxth = PWR_PROXTH_MIN;
+                feedback_tick = 5000;
+                printf("scan freq enable:%d feedback_tick:%d\r\n", __LINE__, feedback_tick);
+                return;
+                    }
     }
 
     pwr0_stuck_cnt = 0;
@@ -1975,6 +1978,7 @@ void magic_cool_freq_track_current(void)
             pwr2_max_cnt = 0;
 
             if( feedback_tick == 5000 ) {
+                // 高温时，可能每个频率功率相差不是很大，减小判断阈值
                 int tmp = pwr_proxth >> 2; //防止抖动
                 if( (pwr0 > pwr1 + tmp && pwr0 > pwr2 + tmp) ) {
                     pwr2_stuck_cnt = 0;
@@ -2245,11 +2249,13 @@ void magic_cool_config(void)
     set_power_enable(ENABLE);
     magic_cool_mode = 0;
 
-    printf("freq_start:%d, freq_stop:%d\r\n", FREQ_MIN, FREQ_MAX);
+    printf("freq_start:%d, freq_stop:%d, vol_target:%d\r\n", FREQ_MIN, FREQ_MAX, VOL_TARGET);
 }
 
 void magic_cool_run(void)
 {
+    static uint32_t next_calibration_tick = 0;
+
     if (magic_cool_mode == 0) {
         // maigc_cool_test_vpp();
         #if 1
@@ -2260,6 +2266,17 @@ void magic_cool_run(void)
             OPA_Disable();
             dcdc_power_control(DISABLE);
         #endif
+
+        // 每3秒执行一次零点校准
+        if (get_systick() >= next_calibration_tick) {
+            #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
+                adc_hvli_input_conv(128);
+            #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
+                adc_hv_input_conv(128);
+            #endif
+            next_calibration_tick = get_systick() + 3000; // 设置下一次校准时间
+        }
+
         return;
     } else if (magic_cool_mode == 1) {  // 校准,阻抗谱
         magic_cool_mode = 3;
