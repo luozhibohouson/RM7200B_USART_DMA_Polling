@@ -15,6 +15,7 @@ float get_peak_to_peak(float *data, int len);
 int find_extremum(float *val, uint32_t len, float *val_maxima, float *val_minima, int *maxima_idx, int *minima_idx);
 int find_extremum_minima(float *val, uint32_t len, int *val_minima, int *minima_idx);
 int find_extremum_maxima(float *val, uint32_t len, int *val_maxima, int *maxima_idx);
+int find_extremum_minima_i(uint32_t *val, uint32_t len, uint32_t *val_minima, int *minima_idx);
 
 int find_maxima(float *val, uint32_t len, float *val_maxima, int *maxima_idx);
 int find_minima(float *val, uint32_t len, float *val_minima, int *minima_idx);

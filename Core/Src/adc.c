@@ -432,9 +432,11 @@ void adc_hvli_input_conv(int num)  // 直流高压输入电压,低端电流
     // adc_dc_lcur_avg -= 1024;
     // adc_dc_lcur_avg -= 1886; //减去偏置电流
 
-    if( !adc_dc_lcur_offset ) {
+    extern uint8_t  magic_cool_mode;
+    if( !adc_dc_lcur_offset || !magic_cool_mode ) {
         adc_dc_lcur_offset = (uint16_t)adc_dc_lcur_avg;
-        printf("adc_dc_lcur_offset:%d\r\n", adc_dc_lcur_offset);
+        if( !adc_dc_lcur_offset )
+            printf("adc_dc_lcur_offset:%d\r\n", adc_dc_lcur_offset);
     }
     adc_dc_lcur_avg -= adc_dc_lcur_offset;
 }

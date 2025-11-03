@@ -108,8 +108,5 @@
 // 串口通讯开关
 #define ENABLE_USART                1
 
-// 查询指令开关 -- 仅在内部测试时使用，客户版本禁止开启该宏
-#define ENABLE_QUERY_CMD            0
-
 #endif
 

@@ -11,7 +11,7 @@
 #include "tim.h"
 
 // 绝对值
-int abs_i(int a)  
+int abs_i(int a)
 {
     if (a > 0)
         return a;
@@ -19,7 +19,7 @@ int abs_i(int a)
 }
 
 // 浮点数绝对值
-float abs_f(float a)  
+float abs_f(float a)
 {
     if (a > 0)
         return a;
@@ -31,21 +31,21 @@ float carmack_sqrt(float x)
 {
     float xhalf = 0.5f * x;
     int i = *(int*)&x;
-    
-    i = 0x5f3759df - (i >> 1);  // 
+
+    i = 0x5f3759df - (i >> 1);  //
     x = *(float*)&i;
     x = x * (1.5f - xhalf * x * x);  // 迭代次数越多越精确
-    x = x * (1.5f - xhalf * x * x); 
     x = x * (1.5f - xhalf * x * x);
     x = x * (1.5f - xhalf * x * x);
-    
+    x = x * (1.5f - xhalf * x * x);
+
     return 1.0f / x;
 }
 
 double calsqrt(float number)
 {
-    float err = 1e-5;   
-    double root = number; 
+    float err = 1e-5;
+    double root = number;
     while (abs_f(number - root * root) > err)
     {
         root = (number / root + root) / 2.0;
@@ -60,10 +60,10 @@ float cal_rms(uint16_t *val, uint32_t len)
     float fx = 0;
     uint32_t sum = 0;
     uint32_t temp = 0;
-    
+
     if (val == NULL || len <= 0)
         return 0;
-    
+
     for (i = 0; i < len; i++) {
         temp = val[i];
         sum = sum + temp * temp;
@@ -71,7 +71,7 @@ float cal_rms(uint16_t *val, uint32_t len)
     fx = (float)sum;
     fx = fx / len;
     fx = sqrt(fx);
-    
+
     return fx;
 }
 
@@ -83,15 +83,15 @@ float cal_sin_rms(uint16_t *val, uint32_t len)
     float sum0 = 0;
     uint32_t sum = 0;
     uint32_t temp = 0;
-    
+
     if (val == NULL || len <= 0)
         return 0;
-    
+
     for (i = 0; i < len; i++) {
         sum0 = sum0 + val[i];
     }
     sum0 = sum0 / len;
-    
+
     for (i = 0; i < len; i++) {
         temp = val[i] - sum0;
         sum = sum + temp * temp;
@@ -99,7 +99,7 @@ float cal_sin_rms(uint16_t *val, uint32_t len)
     fx = (float)sum;
     fx = fx / len;
     fx = sqrt(fx);
-    
+
     return fx;
 }
 
@@ -109,7 +109,7 @@ float get_average(float *val, uint32_t len)
     float sum = 0;
     if (val == NULL || len <= 0)
         return 0;
-    
+
     for (i = 0; i < len; i++) {
         sum += val[i];
     }
@@ -122,7 +122,7 @@ float find_peak_to_peak(float *val, uint32_t len)
     float val_max = 0, val_min = 0;
     if (val == NULL || len <= 0)
         return 0;
-    
+
     val_max = val[0];
     val_min = val[0];
     for (i = 1; i < len; i++) {
@@ -131,12 +131,12 @@ float find_peak_to_peak(float *val, uint32_t len)
         if (val[i] < val_min)
             val_min = val[i];
     }
-    
+
     return val_max - val_min;
 }
 
 // 峰峰值
-float get_peak_to_peak(float *data, int len)  
+float get_peak_to_peak(float *data, int len)
 {
     int i;
     float data_f[128];  // 去除平均值后的数据,近似的对称数据
@@ -186,7 +186,7 @@ float get_peak_to_peak(float *data, int len)
             min_arr[min_cnt++] = min;
             max = data_f[i];
             min = data_f[i];
-        } 
+        }
         else if (data_f[i] < 0 && (data_f[i - 1] > 0)) // 从正到负
         {
             // 判断pos_cnt的大小，如果个数小于阈值，则不是极值
@@ -199,7 +199,7 @@ float get_peak_to_peak(float *data, int len)
             max = data_f[i];
             min = data_f[i];
         }
-        
+
         if (data_f[i] > 0) // 波峰
         {
             neg_cnt = 0;
@@ -218,7 +218,7 @@ float get_peak_to_peak(float *data, int len)
                 min = data_f[i];
             }
         }
-        
+
         if (i == (len - 1)) // 没有过零，且是最后一笔数据
         {
             if (neg_cnt >= M)
@@ -344,7 +344,7 @@ float get_vol_cur_rms(float *vol_data, float *cur_data, int len, float *vol_rms,
     cur_rmsx = cur_rmsx / (float)count;
     *vol_rms = sqrt(vol_rmsx);
     *cur_rms = sqrt(cur_rmsx);
-    
+
 //    printf("-[%d]------------ vrms %.5f, irms %.5f, vrms_sum:%.5f irms_sum:%.5f\r\n", (last_index - first_index + 1), *vol_rms, *cur_rms, vol_rmsx, cur_rmsx);
 
     return 0;
@@ -420,7 +420,7 @@ float get_phase_difference(float *vol_data, float *cur_data, int len)
     count = last_index - first_index + 1;
     vol_rms = sqrt(vol_rms / (last_index - first_index + 1));
     cur_rms = sqrt(cur_rms / (last_index - first_index + 1));
-    
+
 //    vol_rms = get_rms(vol_data, len);
 //    cur_rms = get_rms(cur_data, len);
     phase_difference = acos(dot_product / (vol_rms * cur_rms * count));
@@ -431,7 +431,12 @@ float get_phase_difference(float *vol_data, float *cur_data, int len)
     return phase_difference;
 }
 
-/*  找极值方法：
+/*  查找数组中的特征极值:
+ *  1. 遍历数组，比较相邻三点，找出所有的局部极小值。
+ *  2. 从所有局部极小值中，筛选出值最小的一个。
+ *  3. 从该最小的极小值位置开始，向后查找所有的局部极大值。
+ *  4. 从找到的局部极大值中，筛选出值最大的一个，作为最终的极大值。
+ 找极值方法：
  *  1. 先找极小值，如果有多个极小值，则选择最小的极小值
  *  2. 找极大值，极大值依赖于极小值，找高于极小值频率的极大值的最高值？？？？ 距离极小值最近的极大值？？？？？
  */
@@ -442,15 +447,15 @@ int find_extremum(float *val, uint32_t len, float *val_maxima, float *val_minima
     int max_idx = 0, min_idx = 0;
     if (val == NULL || len <= 0)
         return 0;
-    
-    
+
+
     float temp0, temp1, temp2;
     float sub01, sub12;
-    
+
 //    for (i = 0; i < len; i++) {
 //        printf("%d, %.5f\r\n", 25000 + 100 * i, val[i]);
 //    }
-    
+
     cnt = 0;
     temp0 = val[0];
     temp1 = (temp0 + val[1]) / 2;
@@ -472,7 +477,7 @@ int find_extremum(float *val, uint32_t len, float *val_maxima, float *val_minima
         temp0 = temp1;
         temp1 = temp2;
     }
-    
+
     // 从极小值开始找极大值, 找极小值最近的极大值。是否需要找多个极大值中的最大值？？？？？
     cnt = 0;
     temp0 = val[min_idx];
@@ -497,7 +502,7 @@ int find_extremum(float *val, uint32_t len, float *val_maxima, float *val_minima
         temp0 = temp1;
         temp1 = temp2;
     }
-    
+
     *val_maxima = val_max;
     *val_minima = val_min;
     *maxima_idx = max_idx;
@@ -505,6 +510,10 @@ int find_extremum(float *val, uint32_t len, float *val_maxima, float *val_minima
     return 0;
 }
 
+/*  查找局部极大值:
+ *  通过比较平滑后的相邻三点来寻找局部极大值 (点i-1 < 点i > 点i+1)。
+ *  函数会返回遍历过程中找到的最后一个局部极大值。
+ */
 int find_extremum_maxima(float *val, uint32_t len, int *val_maxima, int *maxima_idx)
 {
     int i = 0;
@@ -512,7 +521,7 @@ int find_extremum_maxima(float *val, uint32_t len, int *val_maxima, int *maxima_
     float sub01, sub12;
     if (val == NULL || len <= 0)
         return 0;
-    
+
     printf("find_extremum_maxima\r\n");
     temp0 = val[0];
     temp1 = (temp0 + val[1]) / 2;
@@ -531,6 +540,10 @@ int find_extremum_maxima(float *val, uint32_t len, int *val_maxima, int *maxima_
     return 0;
 }
 
+/*  查找局部极小值:
+ *  通过比较平滑后的相邻三点来寻找局部极小值 (点i-1 > 点i < 点i+1)。
+ *  函数会返回遍历过程中找到的最后一个局部极小值。
+ */
 int find_extremum_minima(float *val, uint32_t len, int *val_minima, int *minima_idx)
 {
     int i = 0;
@@ -538,7 +551,7 @@ int find_extremum_minima(float *val, uint32_t len, int *val_minima, int *minima_
     float sub01, sub12;
     if (val == NULL || len <= 0)
         return 0;
-    
+
     printf("find_extremum_minima\r\n");
     temp0 = val[0];
     temp1 = (temp0 + val[1]) / 2;
@@ -557,6 +570,75 @@ int find_extremum_minima(float *val, uint32_t len, int *val_minima, int *minima_
     return 0;
 }
 
+int find_extremum_minima_i(uint32_t *val, uint32_t len, uint32_t *val_minima, int *minima_idx)
+{
+    int best_idx = -1;
+    uint32_t best_value = 0;
+
+    // 寻找所有V型谷底数据且值最小的谷底
+    for (size_t i = 1; i < len - 1; i++) {
+        if (val[i-1] > val[i] && val[i] < val[i+1]) {
+            if (best_idx == -1 || val[i] < best_value) {
+                best_idx = i;
+                best_value = val[i];
+            }
+        }
+    }
+    if (best_idx != -1) {
+        printf("1->  idx=%d value=%d\r\n", best_idx, best_value);
+        *val_minima = best_value;
+        *minima_idx = best_idx;
+        return 1;
+    }
+
+    // 寻找峰后最低点 -> /\ 或 \ 数据
+    bool peak_descent_found = false;
+    for (size_t i = 2; i < len; i++) {
+        bool is_descent = val[i] < val[i-1];
+        bool is_after_peak = val[i-1] >= val[i-2];
+
+        if (is_descent) {
+            if (is_after_peak && !peak_descent_found) {
+                peak_descent_found = true;
+                best_idx = i;
+                best_value = val[i];
+            } else if (peak_descent_found) {
+                if (val[i] < best_value) {
+                    best_idx = i;
+                    best_value = val[i];
+                }
+            }
+        }
+    }
+    if (best_idx != -1) {
+        printf("2->  idx=%d value=%d\r\n", best_idx, best_value);
+        *val_minima = best_value;
+        *minima_idx = best_idx;
+        return 2;
+    }
+
+    // 寻找全局最小值 -> / 数据
+    for (size_t i = 1; i < len; i++) {
+        if (val[i-1] < val[i]) {
+            if (best_idx == -1 || val[i-1] < best_value) {
+                best_idx = i - 1;
+                best_value = val[i-1];
+            }
+        }
+    }
+    if (best_idx != -1) {
+        printf("3->  idx=%d value=%d\r\n", best_idx, best_value);
+        *val_minima = best_value;
+        *minima_idx = best_idx;
+        return 3;
+    }
+
+    return 0;
+}
+
+/*  查找全局最大值:
+ *  遍历整个浮点数数组，找出最大值及其索引。
+ */
 int find_maxima(float *val, uint32_t len, float *val_maxima, int *maxima_idx)
 {
     int i = 0;
@@ -564,7 +646,7 @@ int find_maxima(float *val, uint32_t len, float *val_maxima, int *maxima_idx)
     int max_idx = 0;
     if (val == NULL || len <= 0)
         return -1;
-    
+
     val_max = val[0];
     for (i = 1; i < len; i++) {
         if (val[i] > val_max) {
@@ -572,12 +654,15 @@ int find_maxima(float *val, uint32_t len, float *val_maxima, int *maxima_idx)
             max_idx = i;
         }
     }
-    
+
     *val_maxima = val_max;
     *maxima_idx = max_idx;
     return 0;
 }
 
+/*  查找全局最大值 (无符号整型):
+ *  遍历整个无符号整型数组，找出最大值及其索引。
+ */
 int find_maxima_i(uint32_t *val, uint32_t len, uint32_t *val_maxima, int *maxima_idx)
 {
     int i = 0;
@@ -585,7 +670,7 @@ int find_maxima_i(uint32_t *val, uint32_t len, uint32_t *val_maxima, int *maxima
     int max_idx = 0;
     if (val == NULL || len <= 0)
         return -1;
-    
+
     val_max = val[0];
     for (i = 1; i < len; i++) {
         if (val[i] > val_max) {
@@ -593,12 +678,15 @@ int find_maxima_i(uint32_t *val, uint32_t len, uint32_t *val_maxima, int *maxima
             max_idx = i;
         }
     }
-    
+
     *val_maxima = val_max;
     *maxima_idx = max_idx;
     return 0;
 }
 
+/*  查找全局最小值:
+ *  遍历整个浮点数数组，找出最小值及其索引。
+ */
 int find_minima(float *val, uint32_t len, float *val_minima, int *minima_idx)
 {
     int i = 0;
@@ -606,7 +694,7 @@ int find_minima(float *val, uint32_t len, float *val_minima, int *minima_idx)
     int min_idx = 0;
     if (val == NULL || len <= 0)
         return -1;
-    
+
     val_min = val[0];
     for (i = 1; i < len; i++) {
         if (val[i] < val_min) {
@@ -614,12 +702,15 @@ int find_minima(float *val, uint32_t len, float *val_minima, int *minima_idx)
             min_idx = i;
         }
     }
-    
+
     *val_minima = val_min;
     *minima_idx = min_idx;
     return 0;
 }
 
+/*  查找全局最小值 (无符号整型):
+ *  遍历整个无符号整型数组，找出最小值及其索引。
+ */
 int find_minima_i(uint32_t *val, uint32_t len, uint32_t *val_minima, int *minima_idx)
 {
     int i = 0;
@@ -627,7 +718,7 @@ int find_minima_i(uint32_t *val, uint32_t len, uint32_t *val_minima, int *minima
     int min_idx = 0;
     if (val == NULL || len <= 0)
         return -1;
-    
+
     val_min = val[0];
     for (i = 1; i < len; i++) {
         if (val[i] < val_min) {
@@ -635,7 +726,7 @@ int find_minima_i(uint32_t *val, uint32_t len, uint32_t *val_minima, int *minima
             min_idx = i;
         }
     }
-    
+
     *val_minima = val_min;
     *minima_idx = min_idx;
     return 0;
@@ -655,12 +746,12 @@ void rm_math_test(void)
 //    volatile double y = 125.125;
 //    volatile double x = 35.35;
 //    volatile double y_x = 0.0;
-//    
+//
 //    volatile float rad_f = 0;
 //    volatile float y_f = 125.125;
 //    volatile float x_f = 35.35;
 //    volatile float y_x_f = 0.0;
-//    
+//
 //    LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_9);
 //    sys_delayms(1000);
 //    LL_GPIO_SetOutputPin(GPIOB, LL_GPIO_PIN_9);
@@ -668,19 +759,19 @@ void rm_math_test(void)
 //    LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_9);
 //    for (i = 0; i < 1000; i++) {  // 357ms
 //        y_x = i / x;
-//        rad = atan(y_x);  
+//        rad = atan(y_x);
 //    }
 //    LL_GPIO_SetOutputPin(GPIOB, LL_GPIO_PIN_9);
 //    printf("rad:%f\r\n", rad);
 //    sys_delayms(500);
-//    
+//
 //    LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_9);
 //    for (i = 0; i < 1000; i++) {  // 356ms
 //        rad = atan2(y, x);
 //    }
 //    LL_GPIO_SetOutputPin(GPIOB, LL_GPIO_PIN_9);
 //    sys_delayms(500);
-//    
+//
 //    LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_9);
 //    for (i = 0; i < 1000; i++) {  // 30ms
 //        rad_f = atan2f(y_f, x_f);
