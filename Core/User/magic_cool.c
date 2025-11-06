@@ -1856,6 +1856,8 @@ void magic_cool_freq_track_current(void)
     static uint16_t freq_range = FREQ_NORMAL_RANGE;
     static int last_freq;
     static uint32_t countdown_xmin, long_time_same_freq_tick;
+    static uint32_t long_time_same_freq_interval = (10*60*1000);
+    static bool long_time_same_freq_scan_pending = false;
 
     if( reset_pwr_proxth_flag ) {
         reset_pwr_proxth_flag = false;
@@ -1867,6 +1869,8 @@ void magic_cool_freq_track_current(void)
         pwr_proxth_reset_cnt = 0;
 
         countdown_xmin = get_systick() + (3*60*1000); // 3分钟
+        long_time_same_freq_interval = (10*60*1000);
+        long_time_same_freq_scan_pending = false;
     }
 #if 1
     else {
@@ -1879,12 +1883,23 @@ void magic_cool_freq_track_current(void)
         }
     }
 #endif
-
     // 长时间同一频率运行，进行小范围扫频确认是否当前为最佳频率
     if( last_freq == pwm_get_freq() ) {
-        if( (get_systick() - long_time_same_freq_tick) >= (10*60*1000) ) { // 10分钟
+        if( long_time_same_freq_scan_pending ) {
+            if( long_time_same_freq_interval < (30*60*1000) ) {
+                long_time_same_freq_interval += (10*60*1000);
+                if( long_time_same_freq_interval > (30*60*1000) ) {
+                    long_time_same_freq_interval = (30*60*1000);
+                }
+            }
+            long_time_same_freq_scan_pending = false;
+        }
+
+        uint32_t elapsed = get_systick() - long_time_same_freq_tick;
+        if( elapsed >= long_time_same_freq_interval ) {
             long_time_same_freq_tick = get_systick();
             scan_freq_enable = true;
+            long_time_same_freq_scan_pending = true;
             printf("scan enable:%d. long time same freq\r\n", __LINE__);
         }
         //DEBUG:
@@ -1894,6 +1909,8 @@ void magic_cool_freq_track_current(void)
     } else {
         last_freq = pwm_get_freq();
         long_time_same_freq_tick = get_systick();
+        long_time_same_freq_interval = (10*60*1000);
+        long_time_same_freq_scan_pending = false;
     }
 
     if( scan_freq_enable ) {

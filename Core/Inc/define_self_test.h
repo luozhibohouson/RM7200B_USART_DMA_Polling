@@ -17,18 +17,14 @@
   #define     VOL_TARGET_50P  25 //27
 #endif
 // 最大电压，超过停止输出
-#define     VOL_TARGET_MAX    (VOL_TARGET+10)
+#define     VOL_TARGET_MAX    (VOL_TARGET+30)
 
+#define     WRITE_FREQ_ENABLE      1
+#define     PER_ENABLE             1  // 百分比阈值设定 or 固定阈值设定
 
 // 泵频
-#define PUMP_FREQ                  24100
-#if 1
-  #define FREQ_MIN                   23000
-  #define FREQ_MAX                   25000
-#else
-  #define FREQ_MIN                   (PUMP_FREQ - 500)
-  #define FREQ_MAX                   (PUMP_FREQ + 500)
-#endif
+#define FREQ_MIN                   20000
+#define FREQ_MAX                   30000
 
 // 硬件版本
 // V1.1对比V1.0,增加了dc升压芯片的控制引脚,已做兼容

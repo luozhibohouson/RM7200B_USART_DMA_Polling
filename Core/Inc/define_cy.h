@@ -37,7 +37,7 @@
 #define HARDWARE_VERSION           HW_V1_0
 
 // 软件版本
-#define APP_VERSION                "15" //V1.5
+#define APP_VERSION                "16" //V1.6
 
 // 驱动方式 - 差分/单端驱动
 #define PWM_DRIVER_METHOD          PWM_DIFFERENTIAL_DRIVE
