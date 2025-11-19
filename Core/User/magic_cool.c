@@ -44,6 +44,10 @@
 #define PER_ENABLE  0
 #endif
 
+#ifndef WATER_INTRUSION_ENABLE
+#define WATER_INTRUSION_ENABLE 0
+#endif
+
 /*****************************************************************/
 #if ENABLE_QUERY_CMD
 typedef struct {
@@ -56,9 +60,9 @@ vol_cur_data_t max_vol_cur_data, current_vol_cur_data;
 
 typedef struct {
     // uint16_t over_vol_freq[20];
-    uint16_t normal_vol_freq_start;
-    uint16_t normal_vol_freq_end;
-    uint16_t normal_work_freq;
+    uint32_t normal_vol_freq_start;
+    uint32_t normal_vol_freq_end;
+    uint32_t normal_work_freq;
     uint16_t crc16_check;
 }_flow_freq_cfg_t;
 
@@ -76,9 +80,13 @@ volatile bool led_always_on = 0;
 bool scan_freq_enable = false;
 bool first_scan_freq = false;
 bool reset_pwr_proxth_flag = false;
+#if WATER_INTRUSION_ENABLE
+bool reset_water_intrusion_flag = false;
+#endif
 uint16_t magic_cool_vpp = 0;
 
-static int feedback_tick = 20000; // 15000;
+static uint32_t tick_cur = 100;
+static uint16_t feedback_tick = 20000;
 
 
 int32_t pwm1_duty_out = PWM1_MIN_POWER_DUTY;
@@ -101,7 +109,8 @@ float phase[64] = {0};
 #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW || \
     MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH ||\
     MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_ALL
-uint32_t freq_pwr[64] = {0};
+// uint32_t freq_pwr[64] = {0};
+uint32_t freq_pwr[25] = {0};
 #endif
 
 /*******************************************************************/
@@ -154,6 +163,52 @@ uint32_t get_current_cur(void)
 void magic_cool_set_limt(uint32_t freq_min, uint32_t freq_max);
 static void dcdc_power_control(uint8_t enable);
 
+// ==================== 架构优化：类型定义和函数声明 ====================
+// ADC采样数据结构
+typedef struct {
+    uint32_t voltage;
+    uint32_t current;
+} adc_sample_t;
+
+// 功率测量配置
+typedef struct {
+    uint32_t freq;
+    uint32_t target_vol;
+    uint32_t vol_err;
+    uint8_t sample_count;
+    uint16_t delay_before_ms;
+    FunctionalState check_overvoltage;
+} power_measure_config_t;
+
+// 扫频配置
+typedef struct {
+    uint32_t start_freq;
+    uint32_t stop_freq;
+    uint16_t freq_step;
+    uint32_t target_vol;
+    uint32_t vol_err;
+    uint8_t sample_count;
+    bool verbose_print;       // true: 详细打印(--scan格式), false: 简单打印
+} scan_config_t;
+
+// 扫频结果
+typedef struct {
+    uint32_t powers[15];
+    uint8_t count;
+    uint8_t max_index;
+    uint32_t max_power;
+    bool all_zero;
+} scan_result_t;
+
+// 函数声明
+static inline adc_sample_t adc_sample_once(void);
+static inline uint32_t calculate_power(adc_sample_t sample);
+static uint32_t measure_power_with_config(const power_measure_config_t *config);
+static uint32_t measure_power_simple(uint32_t freq, uint8_t n);
+static uint32_t measure_power_force(uint32_t freq, uint8_t n);
+static scan_result_t scan_frequency_range(const scan_config_t *cfg);
+static uint32_t get_freq_from_scan_index(uint32_t start_freq, uint16_t step, uint8_t index);
+
 void close_all_output(void)
 {
     magic_cool_mode = 0;
@@ -183,10 +238,11 @@ static void is_over_voltage(uint16_t vpp, FunctionalState over_voltage_check_ena
     }
     // 认为是调档失败
 #if KEY_VOL_CFG || ENABLE_USART
-    else if( vol >= (adjust_target_vol + 5) ) {
+    else if( vol >= (adjust_target_vol + 5) )
 #else
-    else if( vol >= (VOL_TARGET + 5) ) {
+    else if( vol >= (VOL_TARGET + 5) )
 #endif
+    {
         ret = FAULT_SETTING_FAILED;
     } else {
         switch( fault_vol_status ) {
@@ -197,10 +253,11 @@ static void is_over_voltage(uint16_t vpp, FunctionalState over_voltage_check_ena
                 break;
             case FAULT_SETTING_FAILED:
             #if KEY_VOL_CFG || ENABLE_USART
-                if( vol >= (adjust_target_vol + 3) ) {
+                if( vol >= (adjust_target_vol + 3) )
             #else
-                if( vol >= (VOL_TARGET + 3) ) {
+                if( vol >= (VOL_TARGET + 3) )
             #endif
+                {
                     ret = FAULT_SETTING_FAILED;
                 }
                 break;
@@ -353,14 +410,14 @@ static void flow_freq_cfg_write(uint16_t gold_freq, uint16_t freq_min, uint16_t 
     // 若normal_work_freq超出范围（表明是刚烧录程序）则直接获取gold_freq并写入flash
     // 若gold_freq已超出保存的normal_work_freq±200Hz范围，则不写入并且重新大范围扫频
     bool freq_out_of_valid_range = (flow_freq_cfg.normal_work_freq < 20000 ||
-                                    flow_freq_cfg.normal_work_freq > 30000);
+                                    flow_freq_cfg.normal_work_freq > FREQ_MAX);
     bool gold_within_tolerance = (gold_freq >= flow_freq_cfg.normal_work_freq - 200 &&
                                     gold_freq <= flow_freq_cfg.normal_work_freq + 200);
 
     if(!restart_scan_freq_flag && (freq_out_of_valid_range || gold_within_tolerance)) {
 
         // 表示前面的数据有问题
-        if( gold_freq < 20000 || gold_freq > 30000 ) {
+        if( gold_freq < 20000 || gold_freq > FREQ_MAX ) {
             flow_freq_cfg.normal_vol_freq_start = FREQ_MIN;
             flow_freq_cfg.normal_vol_freq_end = FREQ_MAX;
             flow_freq_cfg.normal_work_freq = 0;
@@ -369,7 +426,7 @@ static void flow_freq_cfg_write(uint16_t gold_freq, uint16_t freq_min, uint16_t 
             return;
         }
 
-        if( flow_freq_cfg.normal_work_freq < 20000 || flow_freq_cfg.normal_work_freq > 30000 ) {
+        if( flow_freq_cfg.normal_work_freq < 20000 || flow_freq_cfg.normal_work_freq > FREQ_MAX ) {
             need_to_write = 1;
         }
 
@@ -724,10 +781,10 @@ int magic_cool_voltage_closeloop(uint32_t vol_target, uint32_t vol_err, uint32_t
 
 void magic_cool_calc_current(FunctionalState not_load_check_enable)
 {
-    adc_hvli_input_conv(128);
-    is_over_current((uint16_t)adc_dc_lcur_avg, not_load_check_enable);
+    adc_sample_t sample = adc_sample_once();
+    is_over_current((uint16_t)sample.current, not_load_check_enable);
 #if ENABLE_QUERY_CMD
-    float cur = CUR_CAL(adc_dc_lcur_avg) * 1000; //转化为uA
+    float cur = CUR_CAL(sample.current) * 1000; //转化为uA
     if( max_vol_cur_data.cur < cur ) {
         max_vol_cur_data.cur = cur;
     }
@@ -983,14 +1040,14 @@ void magic_cool_run_impedance(void)
 #endif
     #if !(Magic_Cool_Customer != Self_Test || WRITE_FREQ_ENABLE)
         magic_cool_freqstart = 20000;
-        magic_cool_freqstop = 30000;
+        magic_cool_freqstop = FREQ_MAX;
     #endif
 
-    // TODO: 范围从20K~30KHz扫描，找到接近最优频率的整数倍频率
-    // if( flow_freq_cfg.normal_work_freq < 20000 || flow_freq_cfg.normal_work_freq > 30000 ) {
-    if( magic_cool_freqstart == 20000 && magic_cool_freqstop == 30000 ) {
+    // NOTE: 范围从20K~30KHz扫描，找到接近最优频率的整数倍频率
+    // if( flow_freq_cfg.normal_work_freq < 20000 || flow_freq_cfg.normal_work_freq > FREQ_MAX ) {
+    if( magic_cool_freqstart == 20000 && magic_cool_freqstop == FREQ_MAX ) {
         magic_cool_freqstart = 20000;
-        magic_cool_freqstop = 30000;
+        magic_cool_freqstop = FREQ_MAX;
         len = magic_cool_scan_power_profile(magic_cool_freqstart, magic_cool_freqstop, 1000);
         uint32_t val;
         if( find_extremum_minima_i(freq_pwr, len, (uint32_t *)&val, &idx_min) == -1 ) {
@@ -1102,43 +1159,30 @@ void magic_cool_run_impedance(void)
     freq_min = magic_cool_freqstart + 100 * pwr_max_idx - SCAN_FREQ_RANGE;
     freq_max = magic_cool_freqstart + 100 * pwr_max_idx + SCAN_FREQ_RANGE;
 
-    pwr_max_idx = 0;
-    freq_pwr[pwr_max_idx] = 0;
-    for (i = 0; i < SCAN_FREQ_RANGE*2/SCAN_FREQ_STEP; i++) {  // 扫描前后250Hz 共500Hz范围 步进50Hz，10个点
-        pwm_set_freq(freq_min + i * SCAN_FREQ_STEP);
-        magic_cool_voltage_closeloop(target_vpp, 2, 100, DISABLE);  // 电压闭环调整，电压误差±2V
-        if( fault_vol_status == FAULT_NORMAL ) {
-            for (cnt = 0; cnt < 10; cnt++) {
-                sys_delayms(10); // 错开一段时间
-    #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
-                // 低电流
-                magic_cool_calc_current(DISABLE);
-                hvol = adc_dc_hvol_avg;
-                lcur = adc_dc_lcur_avg;
-                freq_pwr[i] += hvol * lcur;
-    #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
-                // 高电流
-                adc_hv_input_conv(128);
-                hvol = adc_dc_hvol_avg;
-                hcur = adc_dc_hcur_avg;
-                freq_pwr[i] += hvol * hcur;
-    #endif
-            }
-            freq_pwr[i] = freq_pwr[i] / 10;
-        } else {
-            freq_pwr[i] = 0;
-        }
+    // 使用扫频抽象层 - DRY原则
+    scan_config_t impedance_scan_cfg = {
+        .start_freq = freq_min,
+        .stop_freq = freq_max,
+        .freq_step = SCAN_FREQ_STEP,
+        .target_vol = target_vpp,
+        .vol_err = 2,
+        .sample_count = 10,
+        .verbose_print = false  // 阻抗扫描使用简单格式：freq pwr
+    };
 
-        if (freq_pwr[pwr_max_idx] < freq_pwr[i]) {
-            pwr_max_idx = i;
-        }
-        printf("%d %d\r\n", freq_min + i * SCAN_FREQ_STEP, freq_pwr[i]);
+    scan_result_t impedance_result = scan_frequency_range(&impedance_scan_cfg);
 
-        if( !magic_cool_mode ) {
-            return;
-        }
+    if (!magic_cool_mode) {
+        return;
     }
-    gold_freq = freq_min + SCAN_FREQ_STEP * pwr_max_idx;
+
+    // 复制结果到freq_pwr数组（保持兼容性）
+    for (i = 0; i < impedance_result.count && i < (sizeof(freq_pwr) / sizeof(freq_pwr[0])); i++) {
+        freq_pwr[i] = impedance_result.powers[i];
+    }
+
+    pwr_max_idx = impedance_result.max_index;
+    gold_freq = get_freq_from_scan_index(freq_min, SCAN_FREQ_STEP, pwr_max_idx);
 #endif
 
     magic_cool_pwr_max = freq_pwr[pwr_max_idx];
@@ -1166,6 +1210,9 @@ void magic_cool_run_impedance(void)
     first_scan_freq = true;
 
     reset_pwr_proxth_flag = true;
+#if WATER_INTRUSION_ENABLE
+    reset_water_intrusion_flag = true;
+#endif
 }
 
 #if MAGIC_COOL_TRACK_DEFAULT == MAGIC_COOL_TRACK_PHASE   // 相位追频
@@ -1780,437 +1827,472 @@ void magic_cool_freq_track_current(void)
 }
 
 #else
-uint32_t get_current_pwr(int freq, uint8_t n)
+// ==================== 底层ADC采样抽象层 ====================
+// 策略模式：ADC采样接口（实现）
+static inline adc_sample_t adc_sample_once(void)
 {
-    uint32_t pwr;
-
-    pwm_set_freq(freq);  // 设置当前频率
-    // magic_cool_voltage_closeloop_dcdc(magic_cool_target_vol, 1, 100);// 电压闭环
-    // sys_delayms(50);
-    magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 100, ENABLE);// 电压闭环
-    //TODO: 比较时，也增加高压监测
-    if( fault_vol_status == FAULT_NORMAL ) {
-        sys_delayms(200);
-        pwr = 0;
-        for (uint8_t j = 0; j < n; j++) {
-            sys_delayms(10);
-            // ADC采样，同时采样电压电流
-    #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW  // 直流高压输入电压,低端电流
-            magic_cool_calc_current(ENABLE);
-            pwr += (uint32_t)(adc_dc_hvol_avg * adc_dc_lcur_avg);
-    #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH  // 直流高压输入电压,高端电流
-            adc_hv_input_conv(128);
-            pwr += (uint32_t)(adc_dc_hvol_avg * adc_dc_hcur_avg);
-    #else  // 其他方式，待定
-
-    #endif
-        }
-        pwr = pwr / n;
-    } else {
-        pwr = 0;
-    }
-
-    return pwr;
+    adc_sample_t sample = {0};
+#if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
+    adc_hvli_input_conv(128);
+    sample.voltage = adc_dc_hvol_avg;
+    sample.current = adc_dc_lcur_avg;
+#elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
+    adc_hv_input_conv(128);
+    sample.voltage = adc_dc_hvol_avg;
+    sample.current = adc_dc_hcur_avg;
+#endif
+    return sample;
 }
 
-// 动态更新最大值方式
-void magic_cool_freq_track_current(void)
+// 功率计算：单一职责（实现）
+static inline uint32_t calculate_power(adc_sample_t sample)
 {
-    uint32_t temp = 0;
-    int freq0,freq1,freq2;
-    int i,j;
-    uint8_t n = 5;
-    uint8_t loop_time = 4;
-    uint8_t freq_stepx = 20;
-    int pwr0, pwr1, pwr2;
-    uint32_t pwrx = 0;
-    uint32_t dc_vol, dc_cur;
+    return sample.voltage * sample.current;
+}
+
+// ==================== 功率测量抽象层 ====================
+// 功率测量核心函数：依赖倒置原则（依赖配置抽象）（实现）
+static uint32_t measure_power_with_config(const power_measure_config_t *config)
+{
+    uint32_t power_sum = 0;
+
+    // 设置频率和电压闭环
+    pwm_set_freq(config->freq);
+    magic_cool_voltage_closeloop(config->target_vol, config->vol_err, 100, config->check_overvoltage);
+
+    // 可选延时
+    if (config->delay_before_ms > 0) {
+        sys_delayms(config->delay_before_ms);
+    }
+
+    // 采样并累加功率
+    for (uint8_t i = 0; i < config->sample_count; i++) {
+        sys_delayms(10);
+        adc_sample_t sample = adc_sample_once();
+        power_sum += calculate_power(sample);
+    }
+
+    return power_sum / config->sample_count;
+}
+
+// 便捷函数：接口隔离原则（实现）
+static uint32_t measure_power_simple(uint32_t freq, uint8_t n)
+{
+    power_measure_config_t config = {
+        .freq = freq,
+        .target_vol = magic_cool_target_vol,
+        .vol_err = 1,
+        .sample_count = n,
+        .delay_before_ms = 200,
+        .check_overvoltage = ENABLE
+    };
+
+    // 先执行电压闭环，然后检查故障状态
+    pwm_set_freq(freq);
+    magic_cool_voltage_closeloop(config.target_vol, config.vol_err, 100, config.check_overvoltage);
+
+    if (fault_vol_status == FAULT_NORMAL) {
+        sys_delayms(200);
+        return measure_power_with_config(&config);
+    }
+    return 0;
+}
+
+// 强制测量功率（不检查故障状态）- 用于特殊场景如 all_zero
+static uint32_t measure_power_force(uint32_t freq, uint8_t n)
+{
+    power_measure_config_t config = {
+        .freq = freq,
+        .target_vol = magic_cool_target_vol,
+        .vol_err = 1,
+        .sample_count = n,
+        .delay_before_ms = 200,
+        .check_overvoltage = DISABLE  // 强制测量时不检查过压
+    };
+
+    // 直接测量，无视故障状态
+    return measure_power_with_config(&config);
+}
+
+uint32_t get_current_pwr(int freq, uint8_t n)
+{
+    return measure_power_simple(freq, n);
+}
+
+// ==================== 扫频抽象层 ====================
+// 扫频核心函数：单一职责 + DRY原则（实现）
+static scan_result_t scan_frequency_range(const scan_config_t *cfg)
+{
+    scan_result_t result = {0};
+    result.all_zero = true;
+    uint32_t dc_vol, dc_cur, pwrx;
+
+    for (uint32_t freq = cfg->start_freq; freq <= cfg->stop_freq; freq += cfg->freq_step) {
+        // 设置频率和电压闭环
+        pwm_set_freq(freq);
+        magic_cool_voltage_closeloop(cfg->target_vol, cfg->vol_err, 100, DISABLE);
+
+        // 根据故障状态决定是否测量功率
+        if (fault_vol_status == FAULT_NORMAL) {
+            sys_delayms(200);
+            pwrx = 0;
+
+            // 采样并累加功率
+            for (uint8_t i = 0; i < cfg->sample_count; i++) {
+                sys_delayms(10);
+                adc_sample_t sample = adc_sample_once();
+                pwrx += calculate_power(sample);
+            }
+
+            pwrx = pwrx / cfg->sample_count;
+            result.all_zero = false;
+        } else {
+            pwrx = 0;
+        }
+
+        // 存储功率并更新最大值
+        if (result.count < (sizeof(result.powers) / sizeof(result.powers[0]))) {
+            result.powers[result.count] = pwrx;
+
+            if (pwrx > result.max_power) {
+                result.max_power = pwrx;
+                result.max_index = result.count;
+            }
+
+            result.count++;
+        }
+
+        // 根据配置选择打印格式
+        if (cfg->verbose_print) {
+            // 详细格式（用于追频）
+            printf("--scan freq:%d vpp:%.2f pwr:%d\r\n", freq,
+                   (float)((magic_cool_vpp+voltage_offset)/voltage_gain), pwrx);
+        } else {
+            // 简单格式（用于阻抗扫描）
+            printf("%d %d\r\n", freq, pwrx);
+        }
+
+        // 检查是否需要退出
+        if (!magic_cool_mode) {
+            break;
+        }
+    }
+
+    return result;
+}
+
+// 计算扫描结果的频率（实现）
+static uint32_t get_freq_from_scan_index(uint32_t start_freq, uint16_t step, uint8_t index)
+{
+    return start_freq + index * step;
+}
+
+// ==================== 频率追踪逻辑层 ====================
 
 #if PER_ENABLE
-    uint8_t percent;
-
     #define PWR_PROXTH      6
-    #define PWR_PROXTH_MIN  4  //TODO: 改百分比阈值后,需要重新测试高温环境是否正常
-    #define PWR_PROXTH_MAX  20
+    #define PWR_PROXTH_MIN  4  //NOTE: 改百分比阈值后,需要重新测试高温环境是否正常 -> 测试OK
+    #define PWR_PROXTH_MAX  15
 #else
     #define PWR_PROXTH      ((int)POWER_PROXTH(30))
     #define PWR_PROXTH_MIN  ((int)POWER_PROXTH(15))
     #define PWR_PROXTH_MAX  ((int)POWER_PROXTH(60))
 #endif
-    static int pwr_proxth = PWR_PROXTH; //10mW // 11308; //(10mW / 0.0008843037)
 
-    static uint8_t pwr0_max_cnt = 0, pwr1_max_cnt = 0, pwr2_max_cnt = 0;
-    static uint8_t pwr_proxth_reset_cnt = 0;
-    static uint8_t pwr0_stuck_cnt;
-    static uint8_t pwr2_stuck_cnt;
-    uint32_t pwr_arr[15] = {0};
+#define FREQ_NORMAL_STEP   40
+#define FREQ_NORMAL_RANGE  160
+#define FREQ_HIGH_TEMP_STEP   50
+#define FREQ_HIGH_TEMP_RANGE  250
 
-#if 1
-    #define FREQ_NORMAL_STEP   40   //50
-    #define FREQ_NORMAL_RANGE  160  //200
+// 追踪状态上下文
+typedef struct {
+    uint16_t freq_step;
+    uint16_t freq_range;
+    int pwr_proxth;
+    uint8_t pwr_proxth_reset_cnt;
 
-    #define FREQ_HIGH_TEMP_STEP   50
-    #define FREQ_HIGH_TEMP_RANGE  250
+    // Stuck detection
+    uint8_t pwr0_stuck_cnt;
+    uint8_t pwr2_stuck_cnt;
+    uint8_t pwr0_max_cnt;
+    uint8_t pwr2_max_cnt;
 
-    static uint16_t freq_step = FREQ_NORMAL_STEP;
-    static uint16_t freq_range = FREQ_NORMAL_RANGE;
-    static int last_freq;
-    static uint32_t countdown_xmin, long_time_same_freq_tick;
-    static uint32_t long_time_same_freq_interval = (10*60*1000);
-    static bool long_time_same_freq_scan_pending = false;
+    // Timer state
+    int last_freq;
+    uint32_t countdown_xmin;
+    uint32_t long_time_same_freq_tick;
+    uint32_t long_time_same_freq_interval;
+    bool long_time_same_freq_scan_pending;
+} TrackingState;
 
-    if( reset_pwr_proxth_flag ) {
-        reset_pwr_proxth_flag = false;
+static TrackingState track_state = {
+    .freq_step = FREQ_NORMAL_STEP,
+    .freq_range = FREQ_NORMAL_RANGE,
+    .pwr_proxth = PWR_PROXTH,
+    .long_time_same_freq_interval = (10*60*1000)
+};
 
-        freq_step = FREQ_NORMAL_STEP;
-        freq_range = FREQ_NORMAL_RANGE;
-        pwr_proxth = PWR_PROXTH;
-        feedback_tick = 20000;
-        pwr_proxth_reset_cnt = 0;
+static void track_reset_state(void)
+{
+    track_state.freq_step = FREQ_NORMAL_STEP;
+    track_state.freq_range = FREQ_NORMAL_RANGE;
+    track_state.pwr_proxth = PWR_PROXTH;
+    feedback_tick = 20000;
+    track_state.pwr_proxth_reset_cnt = 0;
 
-        countdown_xmin = get_systick() + (3*60*1000); // 3分钟
-        long_time_same_freq_interval = (10*60*1000);
-        long_time_same_freq_scan_pending = false;
+    track_state.countdown_xmin = get_systick() + (3*60*1000); // 3分钟
+    track_state.long_time_same_freq_tick = get_systick();
+    track_state.long_time_same_freq_interval = (10*60*1000);
+    track_state.long_time_same_freq_scan_pending = false;
+}
+
+static void track_check_timers(void)
+{
+    // 1. 3分钟倒计时检查
+    if( (get_systick() >= track_state.countdown_xmin) && (track_state.countdown_xmin != 0) ) {
+        track_state.countdown_xmin = 0;
+        scan_freq_enable = true;
+        track_state.long_time_same_freq_tick = get_systick();
+        printf("scan enable:%d. countdown 3min\r\n", __LINE__);
     }
-#if 1
-    else {
-        // 气泵启动一定时间后，开启小范围扫频 -> 快速找到最佳工作点
-        if( (get_systick() >= countdown_xmin) && (countdown_xmin != 0) ) {
-            countdown_xmin = 0;
-            scan_freq_enable = true;
-            long_time_same_freq_tick = get_systick();
-            printf("scan enable:%d. countdown 3min\r\n", __LINE__);
-        }
-    }
-#endif
-    // 长时间同一频率运行，进行小范围扫频确认是否当前为最佳频率
-    if( last_freq == pwm_get_freq() ) {
-        if( long_time_same_freq_scan_pending ) {
-            if( long_time_same_freq_interval < (30*60*1000) ) {
-                long_time_same_freq_interval += (10*60*1000);
-                if( long_time_same_freq_interval > (30*60*1000) ) {
-                    long_time_same_freq_interval = (30*60*1000);
+
+    // 2. 长时间同频检查
+    if( track_state.last_freq == pwm_get_freq() ) {
+        if( track_state.long_time_same_freq_scan_pending ) {
+            if( track_state.long_time_same_freq_interval < (30*60*1000) ) {
+                track_state.long_time_same_freq_interval += (10*60*1000);
+                if( track_state.long_time_same_freq_interval > (30*60*1000) ) {
+                    track_state.long_time_same_freq_interval = (30*60*1000);
                 }
             }
-            long_time_same_freq_scan_pending = false;
+            track_state.long_time_same_freq_scan_pending = false;
         }
 
-        uint32_t elapsed = get_systick() - long_time_same_freq_tick;
-        if( elapsed >= long_time_same_freq_interval ) {
-            long_time_same_freq_tick = get_systick();
+        uint32_t elapsed = get_systick() - track_state.long_time_same_freq_tick;
+        if( elapsed >= track_state.long_time_same_freq_interval ) {
+            track_state.long_time_same_freq_tick = get_systick();
             scan_freq_enable = true;
-            long_time_same_freq_scan_pending = true;
+            track_state.long_time_same_freq_scan_pending = true;
             printf("scan enable:%d. long time same freq\r\n", __LINE__);
-        }
-        //DEBUG:
-        else {
-            printf("same freq time:%d \r\n", ((get_systick() - long_time_same_freq_tick)/1000));
+        } else {
+            printf("same freq time:%d interval:%d \r\n", ((get_systick() - track_state.long_time_same_freq_tick)/1000), (track_state.long_time_same_freq_interval/1000));
         }
     } else {
-        last_freq = pwm_get_freq();
-        long_time_same_freq_tick = get_systick();
-        long_time_same_freq_interval = (10*60*1000);
-        long_time_same_freq_scan_pending = false;
+        track_state.last_freq = pwm_get_freq();
+        track_state.long_time_same_freq_tick = get_systick();
+        track_state.long_time_same_freq_interval = (10*60*1000);
+        track_state.long_time_same_freq_scan_pending = false;
     }
+}
 
-    if( scan_freq_enable ) {
-        uint16_t freq_start, freq_stop;
-restart_scan:
-        #if KEY_VOL_CFG
-            led_always_on = 1;
-        #endif
-            freq1 = pwm_get_freq();
-            j = 0;
-            pwrx = 0;
-            freq_start = freq1 - freq_range;
-            freq_stop = freq1 + freq_range;
-            for (temp = freq_start; temp <= freq_stop; temp += freq_step) {  // ±500Hz 扫频
-                pwm_set_freq(temp);  // 设置当前频率
-                magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 100, DISABLE);// 电压闭环
-                if( fault_vol_status == FAULT_NORMAL ) {
-                    sys_delayms(200);
-                    for (i = 0; i < n; i++) {
-                        sys_delayms(10);
-                        // ADC采样，同时采样电压电流
-        #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW  // 直流高压输入电压,低端电流
-                        adc_hvli_input_conv(128);
-                        dc_vol = adc_dc_hvol_avg;
-                        dc_cur = adc_dc_lcur_avg;
-        #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH  // 直流高压输入电压,高端电流
-                        adc_hv_input_conv(128);
-                        dc_vol = adc_dc_hvol_avg;
-                        dc_cur = adc_dc_hcur_avg;
-        #else  // 其他方式，待定
+static void track_perform_scan(uint8_t n)
+{
+    #if KEY_VOL_CFG
+        led_always_on = 1;
+    #endif
 
-        #endif
-                        pwrx += dc_vol * dc_cur;
-                    }
-                    pwrx = pwrx / n;
-                    if( j < (sizeof(pwr_arr)/sizeof(pwr_arr[0])) ) {
-                        pwr_arr[j++] = pwrx;
-                    }
-                } else {
-                    if( j < (sizeof(pwr_arr)/sizeof(pwr_arr[0])) ) {
-                        pwr_arr[j++] = 0;
-                    }
-                }
-                printf("--scan freq:%d vpp:%.2f pwr:%d\r\n", temp, (float)((magic_cool_vpp+voltage_offset)/voltage_gain), pwrx);
-                pwrx = 0;
+    int freq1 = pwm_get_freq();
+    scan_config_t scan_cfg = {
+        .start_freq = freq1 - track_state.freq_range,
+        .stop_freq = freq1 + track_state.freq_range,
+        .freq_step = track_state.freq_step,
+        .target_vol = magic_cool_target_vol,
+        .vol_err = 1,
+        .sample_count = n,
+        .verbose_print = true
+    };
 
-                if( !magic_cool_mode ) {
-                    return;
-                }
-            }
-        #if 1
-            magic_cool_pwr_max = pwr_arr[0];
-            temp = 0;  // 初始化temp为0，对应pwr_arr[0]的索引
-            for (i = 0; i < j; i++) {
-                if (magic_cool_pwr_max < pwr_arr[i]) {
-                    magic_cool_pwr_max = pwr_arr[i];
-                    temp = i;
-                }
-            }
-        #else
-            uint32_t pwr_max, pwr_second_max;
-            int8_t pwr_max_index, pwr_second_max_index, current_index;
+    scan_result_t result = scan_frequency_range(&scan_cfg);
 
-            // 用前两个元素初始化
-            if (pwr_arr[0] >= pwr_arr[1]) {
-                pwr_max = pwr_arr[0];
-                pwr_second_max = pwr_arr[1];
-                pwr_max_index = 0;
-                pwr_second_max_index = 1;
-            } else {
-                pwr_max = pwr_arr[1];
-                pwr_second_max = pwr_arr[0];
-                pwr_max_index = 1;
-                pwr_second_max_index = 0;
-            }
+    if (!magic_cool_mode) return;
 
-            temp = 0;
-            // 从第三个元素开始比较
-            for (i = 2; i < j; i++) {
-                if (pwr_arr[i] > pwr_max) {
-                    // 新的最大值，原最大值变成第二大
-                    pwr_second_max = pwr_max;
-                    pwr_second_max_index = pwr_max_index;
-                    pwr_max = pwr_arr[i];
-                    pwr_max_index = i;
-                    temp = i;
-                } else if (pwr_arr[i] > pwr_second_max) {
-                    // 新的第二大值
-                    pwr_second_max = pwr_arr[i];
-                    pwr_second_max_index = i;
-                }
-            }
+    if (result.all_zero) {
+        printf("--all_pwr_zero, test freq_start and freq_stop only\r\n");
+        uint32_t pwr_start = measure_power_force(scan_cfg.start_freq, n);
+        uint32_t pwr_stop = measure_power_force(scan_cfg.stop_freq, n);
 
-            current_index = j / 2;
-            // 使用最大功率值
-            int temp1 = abs_i(pwr_max_index - current_index);
-            int temp2 = abs_i(pwr_second_max_index - current_index);
-            // 如果最大功率点比次大功率点更偏离中心，并且功率值优势不明显（例如，小于5%），才考虑使用次大值
-            if( (temp1 > temp2) && (abs_i(temp1 - temp2) > 2) && (pwr_max < pwr_second_max * 1.05f) ) {
-                magic_cool_pwr_max = pwr_second_max;
-                temp = pwr_second_max_index;
-            } else {
-                magic_cool_pwr_max = pwr_max;
-                temp = pwr_max_index;
-            }
+        uint32_t best_freq = (pwr_start > pwr_stop) ? scan_cfg.start_freq : scan_cfg.stop_freq;
+        pwm_set_freq(best_freq);
+        magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 100, DISABLE);
+    } else {
+        uint32_t best_freq = get_freq_from_scan_index(scan_cfg.start_freq, track_state.freq_step, result.max_index);
+        magic_cool_pwr_max = result.max_power;
 
-            printf("pwr_max:%d, pwr_second_max:%d, \r\n", pwr_max, pwr_second_max);
+        pwm_set_freq(best_freq);
+        magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 100, DISABLE);
 
-        #endif
+        printf("--scan max freq:%d pwr:%d vpp:%.2f dac:%.2f\r\n", best_freq, magic_cool_pwr_max,
+            (float)((magic_cool_vpp+voltage_offset)/voltage_gain),
+            (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)));
 
-            temp = freq1 - freq_range + temp * freq_step;
-            printf("--scan max freq:%d pwr:%d vpp:%.2f dac:%.2f\r\n", temp, magic_cool_pwr_max, (float)((magic_cool_vpp+voltage_offset)/voltage_gain), (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)));
-            pwm_set_freq(temp);  // 设置当前频率
-            magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 100, DISABLE);// 电压闭环
-            // sys_delayms(200);
-
-            // 若扫频结果在两边边界，则重新小范围扫频，直到频率不在两边边界
-            if( temp == freq_start || temp == freq_stop ) {
-                printf("scan enable:%d. freq_start or freq_stop\r\n", __LINE__);
-                goto restart_scan;
-            }
-        #if KEY_VOL_CFG
-            led_always_on = 0;
-        #endif
-            scan_freq_enable = false;
-            return;
+        // 边界检查：如果在边界，需要重新扫频（通过外部循环控制）
+        if (best_freq == scan_cfg.start_freq ||
+            best_freq == (scan_cfg.start_freq + track_state.freq_step) ||
+            best_freq == (scan_cfg.stop_freq - track_state.freq_step) ||
+            best_freq == scan_cfg.stop_freq) {
+            printf("scan enable:%d. freq at boundary\r\n", __LINE__);
+            scan_freq_enable = true; // 触发下一次循环继续扫
         }
-#else
-    scan_freq_enable = false;
-#endif
-
-    // DEBUG: 测试该增加该语句，对比较PWR差值抖动是否有帮助
-    magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 100, DISABLE);// 电压闭环
-
-    for (i = 0; i < n; i++) {
-        sys_delayms(10);
-        // ADC采样，同时采样电压电流
-#if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW  // 直流高压输入电压,低端电流
-        magic_cool_calc_current(ENABLE);
-        dc_vol = adc_dc_hvol_avg;
-        dc_cur = adc_dc_lcur_avg;
-#elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH  // 直流高压输入电压,高端电流
-        adc_hv_input_conv(128);
-        dc_vol = adc_dc_hvol_avg;
-        dc_cur = adc_dc_hcur_avg;
-#else  // 其他方式，待定
-
-#endif
-        pwrx += dc_vol * dc_cur;
     }
-    pwrx = pwrx / n;
+
+    #if KEY_VOL_CFG
+        led_always_on = 0;
+    #endif
+    scan_freq_enable = false;
+    #if WATER_INTRUSION_ENABLE
+        reset_water_intrusion_flag = true;
+    #endif
+}
+
+static bool track_check_power_stability(uint8_t n)
+{
+    // 测量当前功率
+    magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 100, DISABLE);
+
+    uint32_t pwrx = 0;
+    for (int i = 0; i < n; i++) {
+        sys_delayms(10);
+        adc_sample_t sample = adc_sample_once();
+        pwrx += calculate_power(sample);
+    }
+    pwrx /= n;
     printf("freq: %d pwr:%d\r\n", pwm_get_freq(), pwrx);
 
-    temp = abs_i(magic_cool_pwr_max - pwrx);
-#if PER_ENABLE
-    percent = (uint8_t)(temp*100/magic_cool_pwr_max);
-    printf("absx: %d percent: %d\r\n", temp, percent);
-    if (percent < pwr_proxth) {
-#else
-    printf("absx: %d diff:%.2f\r\n", temp, (float)(temp*(CURRENT_COEFFICIENT * VOL_H_COEFFICIENT)));
-    if (temp < pwr_proxth) {
-#endif
-        if( feedback_tick == 5000 ) {
-            if( ++pwr_proxth_reset_cnt >= 10 ) {
-                freq_step = FREQ_NORMAL_STEP;
-                freq_range = FREQ_NORMAL_RANGE;
-                pwr_proxth = PWR_PROXTH;
-                feedback_tick = 20000;
-                pwr_proxth_reset_cnt = 0;
+    uint32_t diff = abs_i(magic_cool_pwr_max - pwrx);
 
+    #if PER_ENABLE
+        uint8_t percent = (uint8_t)(diff*100/magic_cool_pwr_max);
+        printf("absx: %d percent: %d\r\n", diff, percent);
+        bool is_stable = (percent < track_state.pwr_proxth);
+    #else
+        printf("absx: %d diff:%.2f\r\n", diff, (float)(diff*(CURRENT_COEFFICIENT * VOL_H_COEFFICIENT)));
+        bool is_stable = (diff < track_state.pwr_proxth);
+    #endif
+
+    if (is_stable) {
+        if( feedback_tick == 5000 ) {
+            if( ++track_state.pwr_proxth_reset_cnt >= 10 ) {
+                track_state.freq_step = FREQ_NORMAL_STEP;
+                track_state.freq_range = FREQ_NORMAL_RANGE;
+                track_state.pwr_proxth = PWR_PROXTH;
+                feedback_tick = 20000;
+                track_state.pwr_proxth_reset_cnt = 0;
                 printf("reset pwr proxth. feedback_tick:%d\r\n", feedback_tick);
-            } else {
-                printf("pwr_proxth_reset_cnt:%d\r\n", pwr_proxth_reset_cnt);
             }
         }
-
-        return;
+        return true; // 功率正常（误差在阈值内），无需调整
     } else {
-        pwr_proxth_reset_cnt = 0;
-    #if PER_ENABLE
-        if( percent >= PWR_PROXTH_MAX ) {
-    #else
-        if( temp >= PWR_PROXTH_MAX ) {
-    #endif
-            pwr_proxth_reset_cnt = 0;
+        track_state.pwr_proxth_reset_cnt = 0;
+        #if PER_ENABLE
+            bool huge_stability = (percent >= PWR_PROXTH_MAX);
+        #else
+            bool huge_stability = (diff >= PWR_PROXTH_MAX);
+        #endif
+
+        if (huge_stability) {
             scan_freq_enable = true;
-            freq_step = FREQ_HIGH_TEMP_STEP;
-            freq_range = FREQ_HIGH_TEMP_RANGE;
-            pwr_proxth = PWR_PROXTH_MIN;
+            track_state.freq_step = FREQ_HIGH_TEMP_STEP;
+            track_state.freq_range = FREQ_HIGH_TEMP_RANGE;
+            track_state.pwr_proxth = PWR_PROXTH_MIN;
             feedback_tick = 5000;
             printf("scan enable:%d. feedback_tick:%d\r\n", __LINE__, feedback_tick);
-            return;
+            return true; // 触发扫频，跳过P&O
         }
     }
+    return false; // 功率下降但未到极大值，进入P&O
+}
 
-    pwr0_stuck_cnt = 0;
-    pwr2_stuck_cnt = 0;
-    pwr0_max_cnt = 0;
-    // pwr1_max_cnt = 0;
-    pwr2_max_cnt = 0;
-    for (i = 0; i < loop_time; i++) {
-        // 获取当前频率
-        freq1 = pwm_get_freq();
-        // 获取当前频率+20Hz频率
-        freq2 = freq1 + freq_stepx;
-        // 获取当前频率-20Hz频率
-        freq0 = freq1 - freq_stepx;
+static void track_perturb_observe(uint8_t n)
+{
+    track_state.pwr0_stuck_cnt = 0;
+    track_state.pwr2_stuck_cnt = 0;
+    track_state.pwr0_max_cnt = 0;
+    track_state.pwr2_max_cnt = 0;
 
-        pwr1 = get_current_pwr(freq1, n);
+    for (int i = 0; i < 4; i++) { // loop_time = 4
+        int freq1 = pwm_get_freq();
+        int freq2 = freq1 + 20;
+        int freq0 = freq1 - 20;
+
+        uint32_t pwr1 = measure_power_simple(freq1, n);
         printf("freq1: %d pwr1:%d vpp:%.2f dac:%.2f duty:%d\r\n", freq1, pwr1, (float)((magic_cool_vpp+voltage_offset)/voltage_gain), (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)), pwm_get_duty());
 
-        pwr0 = get_current_pwr(freq0, n);
+        uint32_t pwr0 = measure_power_simple(freq0, n);
         printf("freq0: %d pwr0:%d vpp:%.2f dac:%.2f duty:%d\r\n", freq0, pwr0, (float)((magic_cool_vpp+voltage_offset)/voltage_gain), (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)), pwm_get_duty());
 
-        pwr2 = get_current_pwr(freq2, n);
+        uint32_t pwr2 = measure_power_simple(freq2, n);
         printf("freq2: %d pwr2:%d vpp:%.2f dac:%.2f duty:%d\r\n", freq2, pwr2, (float)((magic_cool_vpp+voltage_offset)/voltage_gain), (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)), pwm_get_duty());
 
-        if( !magic_cool_mode ) {
+        if (!magic_cool_mode) return;
+
+        if (pwr1 == 0 && pwr0 == 0 && pwr2 == 0) {
+            scan_freq_enable = true;
+            printf("scan enable:%d. all pwr is 0\r\n", __LINE__);
             return;
         }
 
-    #if PER_ENABLE
-        int tmp = (magic_cool_pwr_max * pwr_proxth / 100 ) >> 1; //NOTE: 不同频率间阈值超过一半则认为有明显差异
-        // printf("tmp:%d \r\n", tmp);
-    #else
-        int tmp = pwr_proxth >> 1;
-    #endif
+        #if PER_ENABLE
+            int tmp = (magic_cool_pwr_max * track_state.pwr_proxth / 100 ) >> 1;
+        #else
+            int tmp = track_state.pwr_proxth >> 1;
+        #endif
+
         if ((pwr0 > pwr1 + tmp) && (pwr0 > pwr2 + tmp)) {
-            pwr1_max_cnt = 0;
-            if( pwr0_max_cnt == 0 ) {
-                pwr0_max_cnt++;
-                pwr2_max_cnt = 0;
+            if( track_state.pwr0_max_cnt == 0 ) {
+                track_state.pwr0_max_cnt++;
+                track_state.pwr2_max_cnt = 0;
                 pwm_set_freq(freq1);
             } else {
-                pwr0_max_cnt = 0;
+                track_state.pwr0_max_cnt = 0;
                 pwm_set_freq(freq0);
                 printf("set freq0:%d \r\n", freq0);
-                magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 100, ENABLE);// 电压闭环
+                magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 100, ENABLE);
                 magic_cool_pwr_max = pwr0;
-                printf("pwr max:%d\r\n", magic_cool_pwr_max);
             }
         } else if ((pwr1 > pwr0 + tmp) && (pwr1 > pwr2 + tmp)) {
             pwm_set_freq(freq1);
             printf("set freq1:%d \r\n", freq1);
-            magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 100, ENABLE);// 电压闭环
-            // NOTE: 高温实验后，若一直触发freq1为最大频率，但是总体频率又比一开始pwr max小，刷新后就导致无法追到最优频率了
-            // 增加连续触发追频，但是每次都是Freq1为最大，则进行小范围扫频。打印小范围扫频具体是哪个行为触发的
-            // if( ++pwr1_max_cnt >= 5 ) {
-            //     pwr1_max_cnt = 0;
-            //     scan_freq_enable = true;
-            //     printf("scan freq enable:%d\r\n", __LINE__);
-            // }
-            // else {
-                if( pwr1 > magic_cool_pwr_max ) {
-                    magic_cool_pwr_max = pwr1;
-                }
-                printf("pwr max:%d\r\n", magic_cool_pwr_max);
-            // }
+            magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 100, ENABLE);
+            if( pwr1 > magic_cool_pwr_max ) magic_cool_pwr_max = pwr1;
             break;
         } else if ((pwr2 > pwr0 + tmp) && (pwr2 > pwr1 + tmp)) {
-            pwr1_max_cnt = 0;
-            if( pwr2_max_cnt == 0 ) {
-                pwr2_max_cnt++;
-                pwr0_max_cnt = 0;
+            if( track_state.pwr2_max_cnt == 0 ) {
+                track_state.pwr2_max_cnt++;
+                track_state.pwr0_max_cnt = 0;
                 pwm_set_freq(freq1);
             } else {
-                pwr2_max_cnt = 0;
+                track_state.pwr2_max_cnt = 0;
                 pwm_set_freq(freq2);
                 printf("set freq2:%d \r\n", freq2);
-                magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 100, ENABLE);// 电压闭环
+                magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 100, ENABLE);
                 magic_cool_pwr_max = pwr2;
-                printf("pwr max:%d\r\n", magic_cool_pwr_max);
             }
         } else {
             pwm_set_freq(freq1);
-            pwr0_max_cnt = 0;
-            pwr1_max_cnt = 0;
-            pwr2_max_cnt = 0;
+            track_state.pwr0_max_cnt = 0;
+            track_state.pwr2_max_cnt = 0;
 
             if( feedback_tick == 5000 ) {
-                // 高温时，可能每个频率功率相差不是很大，减小判断阈值
-            #if PER_ENABLE
-                int tmp = (magic_cool_pwr_max * pwr_proxth / 100 ) >> 2; //防止抖动
-            #else
-                int tmp = pwr_proxth >> 2; //防止抖动
-            #endif
-                if( (pwr0 > pwr1 + tmp && pwr0 > pwr2 + tmp) ) {
-                    pwr2_stuck_cnt = 0;
-                    pwr0_stuck_cnt++;
-                } else if ( (pwr2 > pwr1 + tmp && pwr2 > pwr0 + tmp) ) {
-                    pwr0_stuck_cnt = 0;
-                    pwr2_stuck_cnt++;
+                #if PER_ENABLE
+                    int tmp_stuck = (magic_cool_pwr_max * track_state.pwr_proxth / 100 ) >> 2;
+                #else
+                    int tmp_stuck = track_state.pwr_proxth >> 2;
+                #endif
+
+                if( (pwr0 > pwr1 + tmp_stuck && pwr0 > pwr2 + tmp_stuck) ) {
+                    track_state.pwr2_stuck_cnt = 0;
+                    track_state.pwr0_stuck_cnt++;
+                } else if ( (pwr2 > pwr1 + tmp_stuck && pwr2 > pwr0 + tmp_stuck) ) {
+                    track_state.pwr0_stuck_cnt = 0;
+                    track_state.pwr2_stuck_cnt++;
                 } else {
-                    pwr0_stuck_cnt = 0;
-                    pwr2_stuck_cnt = 0;
+                    track_state.pwr0_stuck_cnt = 0;
+                    track_state.pwr2_stuck_cnt = 0;
                 }
 
-                if (pwr0_stuck_cnt >= 3 || pwr2_stuck_cnt >= 3) {
-                    pwr0_stuck_cnt = 0;
-                    pwr2_stuck_cnt = 0;
+                if (track_state.pwr0_stuck_cnt >= 3 || track_state.pwr2_stuck_cnt >= 3) {
+                    track_state.pwr0_stuck_cnt = 0;
+                    track_state.pwr2_stuck_cnt = 0;
                     scan_freq_enable = true;
                     printf("scan enable:%d. high temp stuck\r\n", __LINE__);
                     break;
@@ -2218,10 +2300,34 @@ restart_scan:
             }
         }
 
-        if( !magic_cool_mode ) {
-            return;
-        }
+        if (!magic_cool_mode) return;
     }
+}
+
+// 动态更新最大值方式
+void magic_cool_freq_track_current(void)
+{
+    uint8_t n = 5;
+
+    if( reset_pwr_proxth_flag ) {
+        reset_pwr_proxth_flag = false;
+        track_reset_state();
+    } else {
+        track_check_timers();
+    }
+
+    // 循环直到不需要扫频
+    while (scan_freq_enable) {
+        track_perform_scan(n);
+        if (!magic_cool_mode) return;
+    }
+
+    // 检查功率稳定性
+    bool skip_po = track_check_power_stability(n);
+    if (skip_po) return;
+
+    // 追频
+    track_perturb_observe(n);
 }
 #endif
 
@@ -2232,7 +2338,7 @@ restart_scan:
 
 void magic_cool_freq_track(void)
 {
-    static int tick_ph = 50, tick_cur = 100, tick_vol = 1500, tick_imp = 50;
+    static int tick_ph = 50, tick_vol = 1500, tick_imp = 50;
 #if KEY_VOL_CFG || ENABLE_USART
     if( adjust_target_vol != magic_cool_target_vol ) {
         // if( adjust_target_vol > magic_cool_target_vol )
@@ -2326,6 +2432,82 @@ void magic_cool_set_mode(uint32_t mode)
     }
 }
 
+#if WATER_INTRUSION_ENABLE
+void magic_cool_check_water_intrusion(uint32_t power)
+{
+    #define FILTER_WINDOW 10
+    #define POWER_CHANGE_THRESHOLD 20  // 20%
+    #define INTRUSION_DETECT_COUNT 5
+
+    static uint32_t power_filter[FILTER_WINDOW] = {0};
+    static uint8_t filter_index = 0;
+    static uint8_t filter_count = 0;
+    static uint8_t water_intrusion_cnt = 0;
+    static uint32_t last_power = 0;
+
+    uint32_t max_power;
+    uint8_t i;
+
+    if( reset_water_intrusion_flag ) {
+        reset_water_intrusion_flag = false;
+
+        water_intrusion_cnt = 0;
+        last_power = power;
+        filter_index = 0;
+        filter_count = 0;
+        return;
+    }
+
+    if(last_power > 0) {
+        int32_t power_diff = abs_i((int32_t)last_power - (int32_t)power);
+        uint32_t threshold = (last_power * POWER_CHANGE_THRESHOLD) / 100;
+
+        if(power_diff > threshold) {
+            // 检测到功率突变
+            water_intrusion_cnt++;
+
+            uint8_t percent = (uint8_t)(power_diff * 100 / last_power);
+            printf("power: %d diff: %d percent: %d%%\r\n", power, ((power > last_power) ? (power_diff) : (-power_diff)), percent);
+
+            if(water_intrusion_cnt >= INTRUSION_DETECT_COUNT) {
+                printf("Water intrusion detected! cnt:%d\r\n", water_intrusion_cnt);
+                magic_cool_mode = 0;
+            }
+
+            for (uint8_t i = 0; i < sizeof(power_filter) / sizeof(power_filter[0]); i++) {
+                printf("power_filter[%d]: %d ", i, power_filter[i]);
+            }
+            printf("\r\n");
+
+            // 功率突变异常(进水)，延迟追频处理
+            tick_cur = get_systick() + feedback_tick;
+            return;  // 突变时不更新滤波器
+        }
+    }
+
+    water_intrusion_cnt = 0;
+
+    power_filter[filter_index] = power;
+    filter_index++;
+    if(filter_index >= FILTER_WINDOW) {
+        filter_index = 0;
+    }
+
+    if( filter_count < FILTER_WINDOW ) {
+        filter_count++;
+    }
+
+    max_power = 0;
+    for(i = 0; i < filter_count; i++) {
+        if(power_filter[i] > max_power) {
+            max_power = power_filter[i];
+        }
+    }
+
+    last_power = max_power;
+}
+#endif
+
 void magic_cool_mode2(void)
 {
     if (mode2_tick > get_systick()) {  // 500ms更新一次
@@ -2343,7 +2525,11 @@ void magic_cool_mode2(void)
 //    printf("systick:%d\r\n", get_systick());
 
 //    sys_delayms(500);
+#if !WATER_INTRUSION_ENABLE
     mode2_tick = get_systick() + 2000;
+#else
+    mode2_tick = get_systick() + 100;
+#endif
     // ADC采样，同时采样电压电流
     adc_output_conv(128);
     vpp = adc_vpp;
@@ -2379,17 +2565,33 @@ void magic_cool_mode2(void)
 // 功率计算
 #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
         // 低电流
-        magic_cool_calc_current(ENABLE);
-        hvol = adc_dc_hvol_avg;
-        lcur = adc_dc_lcur_avg;
+        adc_sample_t sample = adc_sample_once();
+        hvol = sample.voltage;
+        lcur = sample.current;
+
+        // 保持过流检测逻辑
+        is_over_current((uint16_t)lcur, ENABLE);
+
         // 系数计算: hvol和lcur为adc值，将该值转换为电压电流后简化计算就能得到一个系数
         // power = POWER_CAL(hvol, lcur);
+    #if WATER_INTRUSION_ENABLE
+        static uint8_t tick_2s;
+        if( ++tick_2s >= 5*4 ) {
+            tick_2s = 0;
+            printf("freq:%d, vpp:%0.2f, duty:%ld, hvol: %.2f lcur: %.2f power:%.2f flow:%d dac:%.2f pwr:%d\r\n", freq, vpp, pwm_get_duty(), hvol, lcur, POWER_CAL(hvol, lcur), flow, (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)), (int)(hvol*lcur));
+        }
+
+        magic_cool_check_water_intrusion((uint32_t)(hvol*lcur));
+    #else
         printf("freq:%d, vpp:%0.2f, duty:%ld, hvol: %.2f lcur: %.2f power:%.2f flow:%d dac:%.2f pwr:%d\r\n", freq, vpp, pwm_get_duty(), hvol, lcur, POWER_CAL(hvol, lcur), flow, (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)), (int)(hvol*lcur));
+    #endif
+
 #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
         // 高电流
-        adc_hv_input_conv(128);
-        hvol = adc_dc_hvol_avg;
-        hcur = adc_dc_hcur_avg;
+        adc_sample_t sample = adc_sample_once();
+        hvol = sample.voltage;
+        hcur = sample.current;
+
         power = hvol * hcur * 8.843037 / 1E4; // 0.0008843037
         printf("freq:%d, vpp:%0.2f, ipp:%.2f, imp: %.3f phase: %.3f hvol: %.2f hcur: %.2f power:%.2f flow:%d\r\n", freq, vpp, ipp, imp, phase, hvol, hcur, power, flow);
 #endif

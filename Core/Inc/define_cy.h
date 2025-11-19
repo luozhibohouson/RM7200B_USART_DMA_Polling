@@ -22,22 +22,26 @@
     #define     VOL_TARGET_MAX  53 //(VOL_TARGET+20)
 #endif
 
+#define     PER_ENABLE             1  // 百分比阈值设定 or 固定阈值设定
+#define     WATER_INTRUSION_ENABLE 1  // 进水检测开关
+
 // 泵频
-// #define PUMP_FREQ                  25200
 // V1.3版本送样频率范围
 // #define FREQ_MIN                   23000 // (PUMP_FREQ - 300)
 // #define FREQ_MAX                   25000 // (PUMP_FREQ + 300)
 // V1.4版本送样频率
-#define FREQ_MIN                   22000 // (PUMP_FREQ - 300)
-#define FREQ_MAX                   27500 // (PUMP_FREQ + 300)
+// #define FREQ_MIN                   22000 // (PUMP_FREQ - 300)
+// #define FREQ_MAX                   27500 // (PUMP_FREQ + 300)
+// V1.7版本频率
+#define FREQ_MIN                    20000
+#define FREQ_MAX                    30000
 
 // 硬件版本
 #define HW_V1_0                    "1"
-// #define HW_V1_1                    "2"
 #define HARDWARE_VERSION           HW_V1_0
 
 // 软件版本
-#define APP_VERSION                "16" //V1.6
+#define APP_VERSION                "17" //V1.7
 
 // 驱动方式 - 差分/单端驱动
 #define PWM_DRIVER_METHOD          PWM_DIFFERENTIAL_DRIVE

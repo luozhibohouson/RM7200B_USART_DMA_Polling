@@ -21,10 +21,11 @@
 
 #define     WRITE_FREQ_ENABLE      1
 #define     PER_ENABLE             1  // 百分比阈值设定 or 固定阈值设定
+#define     WATER_INTRUSION_ENABLE 1  // 进水检测开关
 
 // 泵频
-#define FREQ_MIN                   20000
-#define FREQ_MAX                   30000
+#define FREQ_MIN                   20000 //20000
+#define FREQ_MAX                   30000 //30000 //25000
 
 // 硬件版本
 // V1.1对比V1.0,增加了dc升压芯片的控制引脚,已做兼容

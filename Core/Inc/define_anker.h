@@ -9,26 +9,20 @@
   #define     VOL_TARGET_60P  38
   #define     VOL_TARGET_50P  35
 #else
-  #define     VOL_TARGET      40 //40  // 流量目标
-  #define     VOL_TARGET_90P  37 //37
-  #define     VOL_TARGET_80P  34 //35
-  #define     VOL_TARGET_70P  31 //33
-  #define     VOL_TARGET_60P  28 //30
-  #define     VOL_TARGET_50P  25 //27
+  #define     VOL_TARGET      40 // 40 //40 // 流量目标
+  #define     VOL_TARGET_1    30 // 50 //30
+  #define     VOL_TARGET_2    25 // 60 //25
 #endif
 // 最大电压，超过停止输出
-#define     VOL_TARGET_MAX    (VOL_TARGET+10)
+#define     VOL_TARGET_MAX    (VOL_TARGET_2+30)
 
+
+#define     PER_ENABLE             1  // 百分比阈值设定 or 固定阈值设定
+#define     WATER_INTRUSION_ENABLE 1  // 进水检测开关
 
 // 泵频
-#define PUMP_FREQ                  23300
-#if 1
-  #define FREQ_MIN                   25500
-  #define FREQ_MAX                   27500
-#else
-  #define FREQ_MIN                   (PUMP_FREQ - 500)
-  #define FREQ_MAX                   (PUMP_FREQ + 500)
-#endif
+#define FREQ_MIN                   20000
+#define FREQ_MAX                   30000
 
 // 硬件版本
 // V1.1对比V1.0,增加了dc升压芯片的控制引脚,已做兼容
