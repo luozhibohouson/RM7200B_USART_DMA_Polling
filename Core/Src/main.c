@@ -353,7 +353,7 @@ void deep_sleep(void)
             deep_sleep_flag = DEEP_SLEEP_FLAG_WAKEUP;
 
             // 发送唤醒标志给上位机
-            extern uint8_t usart_send_frame(uint8_t cmd, uint8_t *data, uint16_t data_len);
+            extern uint8_t usart_send_frame(uint8_t cmd, uint8_t *data, uint8_t data_len);
             uint8_t response_data[2] = {0};
             response_data[0] = deep_sleep_flag;
             response_data[1] = 0;

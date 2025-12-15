@@ -139,7 +139,7 @@ float find_peak_to_peak(float *val, uint32_t len)
 float get_peak_to_peak(float *data, int len)
 {
     int i;
-    float data_f[128];  // 去除平均值后的数据,近似的对称数据
+    float data_f[ADC_CH_SIZE];  // 去除平均值后的数据,近似的对称数据
     float average = 0.0;  // 平均值
     float max = 0, min = 0;  // 波峰和波谷的极值
     float max_arr[16] = {0}, min_arr[16] = {0};  // 波峰和波谷的极值数组
@@ -164,8 +164,8 @@ float get_peak_to_peak(float *data, int len)
         data_f[i] = data[i] - average;
     }
 
-    M = adc_freq / pwm_get_freq();
-    M = M / 8;  // 2个通道，四分之一周期
+    M = (adc_freq>>1) / pwm_get_freq(); // 双通道分时，实际采样率是 adc_freq / 2
+    M = M / 4;  // 四分之一周期
 //    printf("M:%d\r\n", M);
 
     // 找到波峰极大值和波谷极小值
@@ -577,7 +577,7 @@ int find_extremum_minima_i(uint32_t *val, uint32_t len, uint32_t *val_minima, in
 
     // 寻找所有V型谷底数据且值最小的谷底
     for (size_t i = 1; i < len - 1; i++) {
-        if (val[i-1] > val[i] && val[i] < val[i+1]) {
+        if (val[i-1] > val[i] && val[i] <= val[i+1]) {
             if (best_idx == -1 || val[i] < best_value) {
                 best_idx = i;
                 best_value = val[i];

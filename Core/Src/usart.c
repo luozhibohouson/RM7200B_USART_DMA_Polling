@@ -255,7 +255,7 @@ uint16_t crc16(uint8_t* buff, uint32_t len)
  * @param data_len 数据长度
  * @return 0:成功 1:失败
  */
-uint8_t usart_send_frame(uint8_t cmd, uint8_t *data, uint16_t data_len)
+uint8_t usart_send_frame(uint8_t cmd, uint8_t *data, uint8_t data_len)
 {
     uint8_t tx_buffer[16];  // 足够容纳任何响应帧：帧头(1)+指令(1)+长度(1)+数据(3)+CRC(2)+帧尾(2)=11字节
     uint16_t frame_len = 0;

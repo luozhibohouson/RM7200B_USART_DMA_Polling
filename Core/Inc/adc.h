@@ -3,6 +3,7 @@
 
 #include "main.h"
 #include "controller.h"
+#include "define.h"
 
 
 #define ADC_15MHZ_CONV_FREQ_1MHZ    0    // 15M / (2.5   + 12.5) = 1MHz
@@ -26,8 +27,13 @@
 #define ADC_CHANNEL_IOUT   ADC_Channel_5 // ADC_Channel_5 // ADC_Channel_6    // 输出电流
 
 #ifndef ADC_BUFFER_SIZE
+#if Magic_Cool_Customer != Self_Test_100K
 #define ADC_BUFFER_SIZE 256  // ADC缓冲区大
 #define ADC_CH_SIZE 128  // ADC缓冲区大
+#else
+#define ADC_BUFFER_SIZE 60  // ADC缓冲区大
+#define ADC_CH_SIZE 30  // ADC缓冲区大
+#endif
 #endif
 
 

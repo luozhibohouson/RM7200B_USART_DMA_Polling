@@ -116,7 +116,7 @@ void usart_callback(void);
 
 /* 协议处理函数声明 */
 uint16_t crc16(uint8_t* buff, uint32_t len);
-uint8_t usart_send_frame(uint8_t cmd, uint8_t *data, uint16_t data_len);
+uint8_t usart_send_frame(uint8_t cmd, uint8_t *data, uint8_t data_len);
 void usart_handle_protocol_command(uint8_t *frame_data, uint16_t frame_len);
 void uart_cmd_process(void);
 void usart_transmit(uint8_t *buf, uint32_t len);
