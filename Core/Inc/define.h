@@ -27,7 +27,7 @@
 #define Self_Test_11x11     7   //11*11气泵测试
 #define Self_Test_12x12     8   //12*12气泵测试
 
-#define Magic_Cool_Customer  Self_Test_100K
+#define Magic_Cool_Customer  Self_Test
 
 //根据 Magic_Cool_Customer 选择 具体客户配置
 #include "define_self_test.h"

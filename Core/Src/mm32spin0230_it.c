@@ -137,7 +137,7 @@ void SysTick_Handler(void)
     extern void key_scan();
     key_scan();
 
-#if KEY_VOL_CFG
+#if ENABLE_KEY_VOL_CFG
     extern void magic_cool_led_control(uint32_t tick);
     magic_cool_led_control(sys_tick);
 #endif

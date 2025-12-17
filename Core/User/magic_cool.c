@@ -40,12 +40,12 @@
 #endif
 
 // 没有定义PER_ENABLE时，默认关闭
-#ifndef PER_ENABLE
-#define PER_ENABLE  0
+#ifndef ENABLE_PER
+#define ENABLE_PER  0
 #endif
 
-#ifndef WATER_INTRUSION_ENABLE
-#define WATER_INTRUSION_ENABLE 0
+#ifndef ENABLE_WATER_INTRUSION
+#define ENABLE_WATER_INTRUSION 0
 #endif
 
 /*****************************************************************/
@@ -64,13 +64,13 @@ protocol_fault_t fault_vol_status = FAULT_NORMAL;  // 当前过压故障状态
 protocol_fault_t fault_cur_status = FAULT_NORMAL;  // 当前过流故障状态
 bool reset_time_flag = false;
 
-#if KEY_VOL_CFG
+#if ENABLE_KEY_VOL_CFG
 volatile bool led_always_on = 0;
 #endif
 bool scan_freq_enable = false;
 bool first_scan_freq = false;
 bool reset_pwr_proxth_flag = false;
-#if WATER_INTRUSION_ENABLE
+#if ENABLE_WATER_INTRUSION
 bool reset_water_intrusion_flag = false;
 #endif
 uint16_t magic_cool_vpp = 0;
@@ -117,7 +117,7 @@ float magic_cool_ph_proxth = 0;
 uint32_t magic_cool_freqstart = 22500, magic_cool_freqstop = 29000;
 uint32_t magic_cool_runfreq = 25000;
 uint32_t magic_cool_target_vol = VOL_TARGET;
-#if KEY_VOL_CFG || ENABLE_USART
+#if ENABLE_KEY_VOL_CFG || ENABLE_USART
 uint32_t adjust_target_vol = VOL_TARGET;
 #endif
 
@@ -227,7 +227,7 @@ static void is_over_voltage(uint16_t vpp, FunctionalState over_voltage_check_ena
         ret = FAULT_OVER_VOLTAGE;
     }
     // 认为是调档失败
-#if KEY_VOL_CFG || ENABLE_USART
+#if ENABLE_KEY_VOL_CFG || ENABLE_USART
     else if( vol >= (adjust_target_vol + 5) )
 #else
     else if( vol >= (VOL_TARGET + 5) )
@@ -242,7 +242,7 @@ static void is_over_voltage(uint16_t vpp, FunctionalState over_voltage_check_ena
                 }
                 break;
             case FAULT_SETTING_FAILED:
-            #if KEY_VOL_CFG || ENABLE_USART
+            #if ENABLE_KEY_VOL_CFG || ENABLE_USART
                 if( vol >= (adjust_target_vol + 3) )
             #else
                 if( vol >= (VOL_TARGET + 3) )
@@ -312,7 +312,7 @@ static void check_fault_status(void)
         {&fault_cur_status, FAULT_OVER_CURRENT,   0},      // 过流，立即触发
         {&fault_vol_status, FAULT_OVER_VOLTAGE,   0},      // 过压，立即触发
         {&fault_cur_status, FAULT_NOT_LOAD,       5000},   // 空载，持续5秒触发
-        {&fault_vol_status, FAULT_SETTING_FAILED, 1000},   // 调档失败，持续1秒触发
+        {&fault_vol_status, FAULT_SETTING_FAILED, 2000},   // 调档失败，持续2秒触发
     };
 
     #define NUM_FAULTS  (sizeof(priority_table) / sizeof(priority_table[0]))
@@ -379,7 +379,7 @@ static void dcdc_power_control(uint8_t enable)
     }
 }
 
-#if KEY_VOL_CFG
+#if ENABLE_KEY_VOL_CFG
 void magic_cool_led_control(uint32_t tick)
 {
     if( magic_cool_mode == 0 ) {
@@ -446,11 +446,11 @@ void magic_cool_key_scan(uint8_t key1, uint8_t key2, uint8_t key3)
     if (key2 == 0x01) {
         if (magic_cool_mode == 0) {
             magic_cool_mode = 1;
-        #if KEY_VOL_CFG
+        #if ENABLE_KEY_VOL_CFG
             adjust_target_vol = VOL_TARGET;
         #endif
         } else {
-        #if KEY_VOL_CFG
+        #if ENABLE_KEY_VOL_CFG
             #if Magic_Cool_Customer == AK_Anker
                 if( adjust_target_vol == VOL_TARGET ) {
                     adjust_target_vol = VOL_TARGET_1;
@@ -918,7 +918,7 @@ void magic_cool_run_impedance(void)
     max_vol_cur_data.cur = 0;
 #endif
 
-#if KEY_VOL_CFG
+#if ENABLE_KEY_VOL_CFG
     led_always_on = 1;
 #endif
 
@@ -1094,7 +1094,7 @@ void magic_cool_run_impedance(void)
     pwm_set_freq(magic_cool_runfreq); // 阻抗谱计算最优频率
     magic_cool_voltage_closeloop(target_vpp, 2, 100, ENABLE);// 电压闭环
     sys_delayms(200);
-#if KEY_VOL_CFG
+#if ENABLE_KEY_VOL_CFG
     led_always_on = 0;
 #endif
 
@@ -1102,7 +1102,7 @@ void magic_cool_run_impedance(void)
     first_scan_freq = true;
 
     reset_pwr_proxth_flag = true;
-#if WATER_INTRUSION_ENABLE
+#if ENABLE_WATER_INTRUSION
     reset_water_intrusion_flag = true;
 #endif
 }
@@ -1881,7 +1881,7 @@ static uint32_t get_freq_from_scan_index(uint32_t start_freq, uint16_t step, uin
 
 // ==================== 频率追踪逻辑层 ====================
 
-#if PER_ENABLE
+#if ENABLE_PER
     #define PWR_PROXTH      6
     #define PWR_PROXTH_MIN  4  //NOTE: 改百分比阈值后,需要重新测试高温环境是否正常 -> 测试OK
     #define PWR_PROXTH_MAX  15
@@ -1979,7 +1979,7 @@ static void track_check_timers(void)
 
 static void track_perform_scan(uint8_t n)
 {
-    #if KEY_VOL_CFG
+    #if ENABLE_KEY_VOL_CFG
         led_always_on = 1;
     #endif
 
@@ -1997,7 +1997,9 @@ static void track_perform_scan(uint8_t n)
     scan_result_t result = scan_frequency_range(&scan_cfg);
 
     if (!magic_cool_mode) return;
-
+#if ENABLE_KEY_VOL_CFG || ENABLE_USART
+    if( adjust_target_vol != magic_cool_target_vol ) return;
+#endif
     if (result.all_zero) {
         printf("--all_pwr_zero, test freq_start and freq_stop only\r\n");
         uint32_t pwr_start = measure_power_force(scan_cfg.start_freq, n);
@@ -2028,11 +2030,11 @@ static void track_perform_scan(uint8_t n)
         }
     }
 
-    #if KEY_VOL_CFG
+    #if ENABLE_KEY_VOL_CFG
         led_always_on = 0;
     #endif
     scan_freq_enable = false;
-    #if WATER_INTRUSION_ENABLE
+    #if ENABLE_WATER_INTRUSION
         reset_water_intrusion_flag = true;
     #endif
 }
@@ -2053,7 +2055,7 @@ static bool track_check_power_stability(uint8_t n)
 
     uint32_t diff = abs_i(magic_cool_pwr_max - pwrx);
 
-    #if PER_ENABLE
+    #if ENABLE_PER
         uint8_t percent = (uint8_t)(diff*100/magic_cool_pwr_max);
         printf("absx: %d percent: %d\r\n", diff, percent);
         bool is_stable = (percent < track_state.pwr_proxth);
@@ -2076,7 +2078,7 @@ static bool track_check_power_stability(uint8_t n)
         return true; // 功率正常（误差在阈值内），无需调整
     } else {
         track_state.pwr_proxth_reset_cnt = 0;
-        #if PER_ENABLE
+        #if ENABLE_PER
             bool huge_stability = (percent >= PWR_PROXTH_MAX);
         #else
             bool huge_stability = (diff >= PWR_PROXTH_MAX);
@@ -2124,7 +2126,7 @@ static void track_perturb_observe(uint8_t n)
             return;
         }
 
-        #if PER_ENABLE
+        #if ENABLE_PER
             int tmp = (magic_cool_pwr_max * track_state.pwr_proxth / 100 ) >> 1;
         #else
             int tmp = track_state.pwr_proxth >> 1;
@@ -2166,7 +2168,7 @@ static void track_perturb_observe(uint8_t n)
             track_state.pwr2_max_cnt = 0;
 
             if( feedback_tick == 5000 ) {
-                #if PER_ENABLE
+                #if ENABLE_PER
                     int tmp_stuck = (magic_cool_pwr_max * track_state.pwr_proxth / 100 ) >> 2;
                 #else
                     int tmp_stuck = track_state.pwr_proxth >> 2;
@@ -2192,8 +2194,6 @@ static void track_perturb_observe(uint8_t n)
                 }
             }
         }
-
-        if (!magic_cool_mode) return;
     }
 }
 
@@ -2232,7 +2232,7 @@ void magic_cool_freq_track_current(void)
 void magic_cool_freq_track(void)
 {
     static int tick_ph = 50, tick_vol = 1500, tick_imp = 50;
-#if KEY_VOL_CFG || ENABLE_USART
+#if ENABLE_KEY_VOL_CFG || ENABLE_USART
     if( adjust_target_vol != magic_cool_target_vol ) {
         // if( adjust_target_vol > magic_cool_target_vol )
         { // 电压从低->高才进行小范围扫频 --- X
@@ -2325,7 +2325,7 @@ void magic_cool_set_mode(uint32_t mode)
     }
 }
 
-#if WATER_INTRUSION_ENABLE
+#if ENABLE_WATER_INTRUSION
 void magic_cool_check_water_intrusion(uint32_t power)
 {
     #define FILTER_WINDOW           10
@@ -2439,7 +2439,7 @@ void magic_cool_mode2(void)
 //    printf("systick:%d\r\n", get_systick());
 
 //    sys_delayms(500);
-#if !WATER_INTRUSION_ENABLE
+#if !ENABLE_WATER_INTRUSION
     mode2_tick = get_systick() + 2000;
 #else
     mode2_tick = get_systick() + 100;
@@ -2488,7 +2488,7 @@ void magic_cool_mode2(void)
 
         // 系数计算: hvol和lcur为adc值，将该值转换为电压电流后简化计算就能得到一个系数
         // power = POWER_CAL(hvol, lcur);
-    #if WATER_INTRUSION_ENABLE
+    #if ENABLE_WATER_INTRUSION
         static uint8_t tick_2s;
         // if( ++tick_2s >= 5*4 )
         {

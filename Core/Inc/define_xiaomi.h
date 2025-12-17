@@ -102,7 +102,7 @@
 
 // 功能开关
 // 按键调整电压
-#define KEY_VOL_CFG                 0
+#define ENABLE_KEY_VOL_CFG          0
 
 // 打印开关
 #define ENABLE_PRINTF               1
