@@ -70,6 +70,9 @@ volatile bool led_always_on = 0;
 bool scan_freq_enable = false;
 bool first_scan_freq = false;
 bool reset_pwr_proxth_flag = false;
+#if defined(ENABLE_HIGH_TEMP_SCAN) && (ENABLE_HIGH_TEMP_SCAN == 1)
+bool enable_high_temp_scan = false;
+#endif
 #if ENABLE_WATER_INTRUSION
 bool reset_water_intrusion_flag = false;
 #endif
@@ -234,6 +237,8 @@ static void is_over_voltage(uint16_t vpp, FunctionalState over_voltage_check_ena
 #endif
     {
         ret = FAULT_SETTING_FAILED;
+        scan_freq_enable = true;
+        printf("scan enable:%d. vol setting failed\r\n", __LINE__);
     } else {
         switch( fault_vol_status ) {
             case FAULT_OVER_VOLTAGE:
@@ -249,6 +254,8 @@ static void is_over_voltage(uint16_t vpp, FunctionalState over_voltage_check_ena
             #endif
                 {
                     ret = FAULT_SETTING_FAILED;
+                    scan_freq_enable = true;
+                    printf("scan enable:%d. vol setting failed\r\n", __LINE__);
                 }
                 break;
             default:
@@ -1121,6 +1128,10 @@ void magic_cool_run_impedance(void)
     scan_freq_enable = false;
     first_scan_freq = true;
 
+#if defined(ENABLE_HIGH_TEMP_SCAN) && (ENABLE_HIGH_TEMP_SCAN == 1)
+    enable_high_temp_scan = false;
+#endif
+
     reset_pwr_proxth_flag = true;
 #if ENABLE_WATER_INTRUSION
     reset_water_intrusion_flag = true;
@@ -1958,14 +1969,25 @@ static void track_reset_state(void)
     track_state.long_time_same_freq_scan_pending = false;
 }
 
+#if defined(ENABLE_HIGH_TEMP_SCAN) && (ENABLE_HIGH_TEMP_SCAN == 1)
 static void track_check_timers(void)
 {
+#if 0
     // 1. 3分钟倒计时检查
     if( (get_systick() >= track_state.countdown_xmin) && (track_state.countdown_xmin != 0) ) {
         track_state.countdown_xmin = 0;
         scan_freq_enable = true;
         track_state.long_time_same_freq_tick = get_systick();
         printf("scan enable:%d. countdown 3min\r\n", __LINE__);
+    }
+#endif
+
+    // 没有出现大功率波动则不触发长时间同频检查
+    if( !enable_high_temp_scan ) {
+        track_state.long_time_same_freq_tick = get_systick();
+        track_state.long_time_same_freq_interval = (10*60*1000);
+        track_state.long_time_same_freq_scan_pending = false;
+        return;
     }
 
     // 2. 长时间同频检查
@@ -1996,6 +2018,7 @@ static void track_check_timers(void)
         track_state.long_time_same_freq_scan_pending = false;
     }
 }
+#endif
 
 static void track_perform_scan(uint8_t n)
 {
@@ -2110,6 +2133,9 @@ static bool track_check_power_stability(uint8_t n)
             track_state.freq_range = FREQ_HIGH_TEMP_RANGE;
             track_state.pwr_proxth = PWR_PROXTH_MIN;
             feedback_tick = 5000;
+        #if defined(ENABLE_HIGH_TEMP_SCAN) && (ENABLE_HIGH_TEMP_SCAN == 1)
+            enable_high_temp_scan = true;
+        #endif
             printf("scan enable:%d. feedback_tick:%d\r\n", __LINE__, feedback_tick);
             return true; // 触发扫频，跳过P&O
         }
@@ -2139,12 +2165,18 @@ static void track_perturb_observe(uint8_t n)
         printf("freq2: %d pwr2:%d vpp:%.2f dac:%.2f duty:%d\r\n", freq2, pwr2, (float)((magic_cool_vpp+voltage_offset)/voltage_gain), (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)), pwm_get_duty());
 
         if (!magic_cool_mode) return;
-
-        if (pwr1 == 0 && pwr0 == 0 && pwr2 == 0) {
-            scan_freq_enable = true;
-            printf("scan enable:%d. all pwr is 0\r\n", __LINE__);
+    #if ENABLE_KEY_VOL_CFG || ENABLE_USART
+        if ( adjust_target_vol != magic_cool_target_vol ) {
             return;
         }
+    #endif
+
+        // TODO: 待定，是否保留，因为is_over_voltage若报错，会触发扫频
+        // if (pwr1 == 0 && pwr0 == 0 && pwr2 == 0) {
+        //     scan_freq_enable = true;
+        //     printf("scan enable:%d. all pwr is 0\r\n", __LINE__);
+        //     return;
+        // }
 
         #if ENABLE_PER
             int tmp = (magic_cool_pwr_max * track_state.pwr_proxth / 100 ) >> 1;
@@ -2226,11 +2258,19 @@ void magic_cool_freq_track_current(void)
         reset_pwr_proxth_flag = false;
         track_reset_state();
     } else {
+    #if defined(ENABLE_HIGH_TEMP_SCAN) && (ENABLE_HIGH_TEMP_SCAN == 1)
         track_check_timers();
+    #endif
     }
 
     // 循环直到不需要扫频
     while (scan_freq_enable) {
+    #if ENABLE_KEY_VOL_CFG || ENABLE_USART
+        if( adjust_target_vol != magic_cool_target_vol ) {
+            scan_freq_enable = false;
+            return;
+        }
+    #endif
         track_perform_scan(n);
         if (!magic_cool_mode) return;
     }
@@ -2253,22 +2293,51 @@ void magic_cool_freq_track(void)
 {
     static int tick_ph = 50, tick_vol = 1500, tick_imp = 50;
 #if ENABLE_KEY_VOL_CFG || ENABLE_USART
-    if( adjust_target_vol != magic_cool_target_vol ) {
+    while( adjust_target_vol != magic_cool_target_vol ) {
         // if( adjust_target_vol > magic_cool_target_vol )
         { // 电压从低->高才进行小范围扫频 --- X
           // 经测试，目标电压变化后必须扫频找到合适频率才能守住电压，否则电压会飘高
             if( adjust_target_vol != VOL_TARGET || first_scan_freq == false ) {
-                scan_freq_enable = true;
+                // TODO: 切档后取消小范围扫频
+                // scan_freq_enable = true;
             }
 
             first_scan_freq = false;
         }
         magic_cool_target_vol = adjust_target_vol;
+        // magic_cool_voltage_closeloop(magic_cool_target_vol, 2, 50, ENABLE);// 电压闭环
+        // sys_delayms(10);
+
+        //TODO: 切档可以在此再次优化
+    #if 0
+        uint32_t pwr = get_current_pwr(pwm_get_freq(), 5);
+    #else
+        uint32_t pwr = 0;
         magic_cool_voltage_closeloop(magic_cool_target_vol, 2, 50, ENABLE);// 电压闭环
-        sys_delayms(10);
-    } else {
-        first_scan_freq = false;
+
+        if (fault_vol_status == FAULT_NORMAL) {
+            for (uint8_t i = 0; i < 5; i++) {
+                sys_delayms(10);
+                adc_sample_t sample = adc_sample_once();
+                pwr += calculate_power(sample);
+            }
+            pwr = pwr / 5;
+        }
+    #endif
+        if( pwr != 0 ) {
+            magic_cool_pwr_max = pwr;
+        }
+        printf("max pwr:%d\r\n", magic_cool_pwr_max);
+
+        scan_freq_enable = false;
+        printf("scan freq disable:%d\r\n", __LINE__);
+
+        // 重置进水状态，防止切换档位误报进水
+    #if ENABLE_WATER_INTRUSION
+        reset_water_intrusion_flag = true;
+    #endif
     }
+    first_scan_freq = false;
 #endif
 
 #if MAGIC_COOL_TRACK_DEFAULT == MAGIC_COOL_TRACK_PHASE

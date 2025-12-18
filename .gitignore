@@ -13,3 +13,14 @@ MDK-ARM/hex2bin.py
 *.hex
 *.bin
 *.txt
+Core/User/TODO.list.c
+MDK-ARM/Listings/
+*.csv
+*.xlsx
+*.bat
+*.py
+*.list
+/MDK-ARM/RTE/
+MDK-ARM/JLinkSettings.ini
+
+Multi_Project/USART_DMA_Polling_Multi_Project.uvmpw.uvgui.X-xin
