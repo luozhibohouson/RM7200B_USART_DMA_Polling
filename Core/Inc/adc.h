@@ -28,8 +28,8 @@
 
 #ifndef ADC_BUFFER_SIZE
 #if Magic_Cool_Customer != Self_Test_100K
-#define ADC_BUFFER_SIZE 256  // ADC缓冲区大
-#define ADC_CH_SIZE 128  // ADC缓冲区大
+#define ADC_BUFFER_SIZE (256)  // ADC缓冲区大
+#define ADC_CH_SIZE (ADC_BUFFER_SIZE>>1)  // ADC缓冲区大
 #else
 #define ADC_BUFFER_SIZE 60  // ADC缓冲区大
 #define ADC_CH_SIZE 30  // ADC缓冲区大

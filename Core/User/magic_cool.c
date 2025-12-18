@@ -404,14 +404,24 @@ void magic_cool_led_control(uint32_t tick)
         case VOL_TARGET_2: flash_count = 3; break;
         // case 20: flash_count = 3; break;
     #else
-        case VOL_TARGET: flash_count = 1; break;
-        case VOL_TARGET_90P: flash_count = 2; break;
-        case VOL_TARGET_80P: flash_count = 3; break;
-        case VOL_TARGET_70P: flash_count = 4; break;
-        case VOL_TARGET_60P: flash_count = 5; break;
-        case VOL_TARGET_50P: flash_count = 6; break;
+            case VOL_TARGET: flash_count = 1; break;
+        #ifdef VOL_TARGET_90P
+            case VOL_TARGET_90P: flash_count = 2; break;
+        #endif
+        #ifdef VOL_TARGET_80P
+            case VOL_TARGET_80P: flash_count = 3; break;
+        #endif
+        #ifdef VOL_TARGET_70P
+            case VOL_TARGET_70P: flash_count = 4; break;
+        #endif
+        #ifdef VOL_TARGET_60P
+            case VOL_TARGET_60P: flash_count = 5; break;
+        #endif
+        #ifdef VOL_TARGET_50P
+            case VOL_TARGET_50P: flash_count = 6; break;
+        #endif
     #endif
-        default: flash_count = 0; break;
+            default: flash_count = 0; break;
     }
 
     if( flash_count == 0 ) {
@@ -463,11 +473,21 @@ void magic_cool_key_scan(uint8_t key1, uint8_t key2, uint8_t key3)
                 // 使用表格驱动法优化电压档位切换
                 const uint8_t voltage_levels[] = {
                     VOL_TARGET,
+                #ifdef VOL_TARGET_90P
                     VOL_TARGET_90P,
+                #endif
+                #ifdef VOL_TARGET_80P
                     VOL_TARGET_80P,
+                #endif
+                #ifdef VOL_TARGET_70P
                     VOL_TARGET_70P,
+                #endif
+                #ifdef VOL_TARGET_60P
                     VOL_TARGET_60P,
+                #endif
+                #ifdef VOL_TARGET_50P
                     VOL_TARGET_50P,
+                #endif
                 };
                 const uint8_t num_levels = sizeof(voltage_levels) / sizeof(voltage_levels[0]);
                 static uint8_t current_level_index = 0;
@@ -2516,28 +2536,38 @@ void maigc_cool_test_vpp(void)
 {
     static uint16_t cnt;
     if( cnt == 0 ) {
-        pwm_enable(ENABLE);
-        pwm_set_config(24700, 30);
+        OPA_Enable();
+        // 从低频率开始，防止过冲烧坏气泵
+        // 恢复默认dac
+        pwm1_duty_out = PWM1_MIN_POWER_DUTY;
+        pwm1_set_duty(pwm1_duty_out);
         set_power_enable(ENABLE);
+        sys_delayms(2);
+        dcdc_power_control(ENABLE);
+        sys_delayms(10);    //NOTE:增加延时,防止短时间电压过冲
+        // 升压稳定后再开H桥PWM
+        pwm_set_freq(27050);
+        pwm_enable(ENABLE);
+        magic_cool_voltage_closeloop(magic_cool_target_vol, 2, 100, DISABLE);
         // cnt = 1000;
     }
     sys_delayms(1000);
-    // for(; cnt<1000; cnt++) {
-    //     adc_output_conv(ADC_CH_SIZE);
-    //     printf("%.2f,", find_peak_to_peak(adc_voltage_data, 128));
-    // }
+    for(; cnt<1000; cnt++) {
+        adc_output_conv(ADC_CH_SIZE);
+        printf("%.2f,", find_peak_to_peak(adc_voltage_data, (uint32_t)ADC_CH_SIZE));
+    }
     if( cnt == 1000 ) {
-        // printf("\r\n");
-        // adc_hvli_input_conv(ADC_CH_SIZE);
-        // for(int i = 0; i < 128; i++) {
-        //     printf("%.2f \r\n", adc_voltage_data[i]);
-        // }
-        // printf("---------\r\n");
-        // for(int i = 0; i < 128; i++) {
-        //     printf("%.2f \r\n", adc_current_data[i]);
-        // }
-        // for(int i = 0; i < 128; i++) {
-        //     printf("%d, %d\r\n", adc_voltage_data[i], adc_current_data[i]);
+        printf("\r\n");
+        adc_hvli_input_conv(ADC_CH_SIZE);
+        for(int i = 0; i < ADC_CH_SIZE; i++) {
+            printf("%.2f \r\n", adc_voltage_data[i]);
+        }
+        printf("---------\r\n");
+        for(int i = 0; i < ADC_CH_SIZE; i++) {
+            printf("%.2f \r\n", adc_current_data[i]);
+        }
+        // for(int i = 0; i < ADC_CH_SIZE; i++) {
+        //     printf("%.2f, %.2f\r\n", adc_voltage_data[i], adc_current_data[i]);
         // }
         sys_delayms(100);
         cnt = 1001;
@@ -2590,15 +2620,16 @@ void magic_cool_run(void)
     static uint32_t next_calibration_tick = 0;
 
     if (magic_cool_mode == 0) {
-        // maigc_cool_test_vpp();
-        #if 1
-            pwm_enable(DISABLE);
-            pwm1_duty_out = PWM1_MIN_POWER_DUTY;
-            pwm1_set_duty(pwm1_duty_out);  // 设置DAC输出DCDC
-            set_power_enable(ENABLE);
-            OPA_Disable();
-            dcdc_power_control(DISABLE);
-        #endif
+    #if 0
+        maigc_cool_test_vpp();
+    #else
+
+        pwm_enable(DISABLE);
+        pwm1_duty_out = PWM1_MIN_POWER_DUTY;
+        pwm1_set_duty(pwm1_duty_out);  // 设置DAC输出DCDC
+        set_power_enable(ENABLE);
+        OPA_Disable();
+        dcdc_power_control(DISABLE);
 
         // 每3秒执行一次零点校准
         if (get_systick() >= next_calibration_tick) {
@@ -2609,7 +2640,7 @@ void magic_cool_run(void)
             #endif
             next_calibration_tick = get_systick() + 3000; // 设置下一次校准时间
         }
-
+    #endif
         return;
     } else if (magic_cool_mode == 1) {  // 校准,阻抗谱
         magic_cool_mode = 3;
