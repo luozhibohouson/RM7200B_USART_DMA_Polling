@@ -188,7 +188,8 @@ uint32_t tim1_duty_dt = 0;
 void timer1_set_output(uint32_t freq, uint32_t duty)
 {
     uint32_t compare = 0;
-    uint32_t autoreload = SystemCoreClock / freq;
+    /* 四舍五入：让 ARR 更接近目标频率（相比直接截断误差更小） */
+    uint32_t autoreload = (SystemCoreClock + (freq / 2U)) / freq;
     TIM_SetAutoreload(TIM1, autoreload);
     compare = autoreload * duty / 100;
     TIM_SetCompare3(TIM1, compare);
@@ -199,7 +200,8 @@ void timer1_set_output(uint32_t freq, uint32_t duty)
 
 void timer1_set_freq(uint32_t freq)
 {
-    uint32_t autoreload = SystemCoreClock / freq;
+    /* 四舍五入：让 ARR 更接近目标频率（相比直接截断误差更小） */
+    uint32_t autoreload = (SystemCoreClock + (freq / 2U)) / freq;
     if (tim1_duty > (autoreload >> 1)) {  /// 占空比保护
         tim1_duty = (autoreload >> 1) - 1;
         TIM_SetCompare3(TIM1, tim1_duty);
