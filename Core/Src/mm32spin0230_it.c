@@ -133,9 +133,10 @@ void SysTick_Handler(void)
     } else {
         t10ms_f = 0;
     }
-
+#if !ENABLE_USART
     extern void key_scan();
     key_scan();
+#endif
 
 #if ENABLE_KEY_VOL_CFG
     extern void magic_cool_led_control(uint32_t tick);

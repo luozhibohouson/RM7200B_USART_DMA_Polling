@@ -91,7 +91,7 @@ void app_upgrade_success(void)
 
     flash_erase_page((uint16_t)(PARAM_START_ADDR / FLASH_PAGE_SIZE));
     flash_write_halfword(PARAM_START_ADDR, (uint16_t*)&app_info, sizeof(app_info));
-#ifdef ERASE_FLOW_CFG
+#if defined(ERASE_FLOW_CFG) && (ENABLE_WRITE_FREQ == 1)
     //TODO: 每次升级成功后擦除保留的频率值
     extern void erase_flow_freq_cfg(void);
     erase_flow_freq_cfg();
