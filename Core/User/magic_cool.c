@@ -75,6 +75,8 @@ static volatile bool pending_write_freq_to_flash = false;
 
 bool have_been_write_freq = false;
 
+bool stop_scan_freq = false;
+
 uint8_t current_flow_level = FLOW_LEVEL_100_PERCENT;  // 当前流量档位
 protocol_fault_t fault_status = FAULT_NORMAL;  // 当前故障状态
 protocol_fault_t fault_vol_status = FAULT_NORMAL;  // 当前过压故障状态
@@ -498,7 +500,7 @@ bool flow_freq_read_from_flash(_flow_freq_cfg_t *cfg)
 
     uint32_t addr = FLOW_FREQ_CFG_ADDR + valid_idx * CFG_RECORD_SIZE;
     flash_read_bytes(addr, (uint8_t*)cfg, sizeof(*cfg));
-    printf("read flow freq cfg success, slot: %d\r\n", valid_idx);
+    printf("\r\n read flow freq cfg success, slot: %d\r\n", valid_idx);
     return true;
 }
 
@@ -619,10 +621,42 @@ static void flow_freq_cfg_init(void)
 //TODO: 只有按键关闭输出或发deepsleep指令才会保存数据,需要注意高温环境下不能保存
 void write_final_freq_to_flash(void)
 {
+    uint32_t freq = pwm_get_freq();
+
+    // ============ 验证1：基本频率范围检查 ============
+    if (freq < FREQ_MIN || freq > FREQ_MAX) {
+        printf("freq out of range, skip: %d\r\n", freq);
+        return;
+    }
+
+    // ============ 验证2：故障状态检查 ============
+    if (fault_status != FAULT_NORMAL) {
+        printf("fault detected, skip write\r\n");
+        return;
+    }
+
     // flash_read_bytes(FLOW_FREQ_CFG_ADDR, (uint8_t*)&flow_freq_cfg, sizeof(flow_freq_cfg));
     flow_freq_read_from_flash(&flow_freq_cfg);
 
-    uint32_t freq = pwm_get_freq();
+    // ============ 验证3：与已校准频率的偏差检查 ============
+    // 如果已有有效的校准频率，新频率不能偏离太多
+    #define FREQ_SAVE_TOLERANCE  300  // 容许偏差±300Hz（可根据实际调整到200-500Hz）
+
+    // 检查已保存的频率是否有效（在合理的工作范围内，比如25k-29k）
+    bool has_valid_calibration = (flow_freq_cfg.normal_work_freq >= FREQ_MIN &&
+                                   flow_freq_cfg.normal_work_freq <= FREQ_MAX);
+
+    if (has_valid_calibration) {
+        int32_t freq_diff = (int32_t)freq - (int32_t)flow_freq_cfg.normal_work_freq;
+        if (freq_diff < 0) freq_diff = -freq_diff;  // abs
+
+        if (freq_diff > FREQ_SAVE_TOLERANCE) {
+            // 偏差过大，可能是异常状态（高温漂移、故障等）
+            printf("freq drift too large: saved=%d, current=%d, diff=%d\r\n",
+                    flow_freq_cfg.normal_work_freq, freq, freq_diff);
+            return;
+        }
+    }
 
     if( freq != flow_freq_cfg.normal_work_freq ) {
         flow_freq_cfg.normal_work_freq = freq;
@@ -906,13 +940,20 @@ int magic_cool_voltage_closeloop_dcdc(uint32_t vol_target, uint32_t vol_err, uin
         // }
         // printf("pwm1_duty_out:%d, pid_delta:%d\r\n", pwm1_duty_out, pid_delta);
         pwm1_set_duty((uint32_t)pwm1_duty_out);
-        sys_delayms(20);
 
         if (ret == 1) {
             // printf("pwm1_duty_out of range\r\n");
             magic_cool_vpp = vpp;
             return 1;
         }
+
+        if( (first_scan_freq == false) && (adjust_target_vol != magic_cool_target_vol) ) {
+            stop_scan_freq = true;
+            printf("stop scan freq\r\n");
+            return 1;
+        }
+
+        sys_delayms(20);
     }
 
     magic_cool_vpp = vpp;
@@ -1216,6 +1257,8 @@ void magic_cool_run_impedance(void)
     fault_vol_status = FAULT_NORMAL;
     fault_cur_status = FAULT_NORMAL;
 
+    first_scan_freq = true;
+
     // 重置历史电压/电流最大值
 #if ENABLE_QUERY_CMD
     max_vol_cur_data.vol = 0;
@@ -1402,7 +1445,6 @@ void magic_cool_run_impedance(void)
 #endif
 
     scan_freq_enable = false;
-    first_scan_freq = true;
 
 #if ENABLE_WRITE_FREQ
     flow_freq_cfg_write(magic_cool_runfreq, freq_min, freq_max);
@@ -2647,6 +2689,11 @@ void magic_cool_vpp_change(void)
     #else
         uint32_t pwr = 0;
         magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 100, ENABLE);// 电压闭环
+
+        if( stop_scan_freq ) {
+            stop_scan_freq = false;
+            continue;
+        }
 
         if (fault_vol_status == FAULT_NORMAL) {
             for (uint8_t i = 0; i < 5; i++) {
