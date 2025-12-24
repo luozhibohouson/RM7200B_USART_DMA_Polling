@@ -393,10 +393,6 @@ static void handle_deep_sleep_cmd(uint8_t *data, uint16_t data_len)
             error_code = ERR_SUCCESS;
             extern void close_all_output(void);
             close_all_output();
-        #if ENABLE_WRITE_FREQ
-            extern void write_final_freq_to_flash(void);
-            write_final_freq_to_flash();
-        #endif
         }
     }
 

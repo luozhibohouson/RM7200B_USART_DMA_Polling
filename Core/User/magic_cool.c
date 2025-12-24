@@ -64,7 +64,8 @@ typedef struct {
     uint32_t normal_vol_freq_start;
     uint32_t normal_vol_freq_end;
     uint32_t normal_work_freq;
-    uint16_t reserved;
+    uint16_t reserved:15;
+    bool have_been_write_freq:1;
     uint16_t crc16_check;
 }_flow_freq_cfg_t;
 
@@ -72,8 +73,6 @@ _flow_freq_cfg_t flow_freq_cfg;
 
 static volatile bool pending_write_freq_to_flash = false;
 #endif
-
-bool have_been_write_freq = false;
 
 bool stop_scan_freq = false;
 
@@ -518,7 +517,7 @@ static void flow_freq_cfg_write(uint16_t gold_freq, uint16_t freq_min, uint16_t 
     uint8_t need_to_write = 0;
     // _flow_freq_cfg_t tmp_cfg;
 
-    if( !magic_cool_mode || have_been_write_freq ) {
+    if( !magic_cool_mode || flow_freq_cfg.have_been_write_freq ) {
         return;
     }
 
@@ -567,10 +566,10 @@ static void flow_freq_cfg_write(uint16_t gold_freq, uint16_t freq_min, uint16_t 
         flow_freq_cfg.normal_vol_freq_start = flow_freq_cfg.normal_work_freq;
         flow_freq_cfg.normal_vol_freq_end = flow_freq_cfg.normal_work_freq;
     #endif
-        have_been_write_freq = true;
+        flow_freq_cfg.have_been_write_freq = true;
         // NOTE: 修复手动关闭or手动发送指令关闭时，扫频没有从normal_vol_freq_start和normal_vol_freq_end开始
         magic_cool_set_limt(flow_freq_cfg.normal_vol_freq_start, flow_freq_cfg.normal_vol_freq_end);
-        printf("[sys:%d] %s: Success.flag:%d\r\n", get_systick()-debug_tick, __func__, have_been_write_freq);
+        printf("[sys:%d] %s: Success.flag:%d\r\n", get_systick()-debug_tick, __func__, flow_freq_cfg.have_been_write_freq);
         debug_tick = get_systick();
     // } else {
     //     printf("%s: Fail. wk_fq:%d, st_fq:%d, end_fq:%d\r\n", __func__, flow_freq_cfg.normal_work_freq, flow_freq_cfg.normal_vol_freq_start, flow_freq_cfg.normal_vol_freq_end);
@@ -600,15 +599,15 @@ static void flow_freq_cfg_init(void)
     if( !flow_freq_read_from_flash(&flow_freq_cfg) ) {
         flow_freq_cfg.normal_vol_freq_start = FREQ_MIN;
         flow_freq_cfg.normal_vol_freq_end = FREQ_MAX;
-        have_been_write_freq = false;
+        flow_freq_cfg.have_been_write_freq = false;
         return;
     }
 
     crc16_check = crc16((uint8_t*)&flow_freq_cfg, (sizeof(flow_freq_cfg)-2));
     if( flow_freq_cfg.crc16_check == crc16_check ) {
-        have_been_write_freq = true;
+        // flow_freq_cfg.have_been_write_freq = true;
         magic_cool_set_limt(flow_freq_cfg.normal_work_freq, flow_freq_cfg.normal_work_freq);
-        printf("flow freq cfg crc16 check success.flag:%d\r\n", have_been_write_freq);
+        printf("flow freq cfg crc16 check success.flag:%d\r\n", flow_freq_cfg.have_been_write_freq);
         return;
     } else {
         printf("flow freq cfg crc16 check failed crc16_check:%04x %04x\r\n", crc16_check, flow_freq_cfg.crc16_check);
@@ -616,12 +615,19 @@ static void flow_freq_cfg_init(void)
 
     flow_freq_cfg.normal_vol_freq_start = FREQ_MIN;
     flow_freq_cfg.normal_vol_freq_end = FREQ_MAX;
+    flow_freq_cfg.have_been_write_freq = false;
 }
 
 //TODO: 只有按键关闭输出或发deepsleep指令才会保存数据,需要注意高温环境下不能保存
 void write_final_freq_to_flash(void)
 {
     uint32_t freq = pwm_get_freq();
+
+    // 必须校准过才能保存
+    if( flow_freq_cfg.have_been_write_freq == false ) {
+        printf("have not calc\r\n");
+        return;
+    }
 
     // ============ 验证1：基本频率范围检查 ============
     if (freq < FREQ_MIN || freq > FREQ_MAX) {
@@ -662,6 +668,7 @@ void write_final_freq_to_flash(void)
         flow_freq_cfg.normal_work_freq = freq;
         flow_freq_cfg.normal_vol_freq_start = freq;
         flow_freq_cfg.normal_vol_freq_end = freq;
+        flow_freq_cfg.have_been_write_freq = true;
 
         flow_freq_write_to_flash(&flow_freq_cfg);
     }
@@ -1021,7 +1028,7 @@ void magic_cool_calc_current(FunctionalState not_load_check_enable)
 int magic_cool_scan_power_profile(uint32_t start_freq, uint32_t stop_freq, uint32_t step_freq)
 {
 #if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
-    uint32_t target_vpp = (!have_been_write_freq) ? VOL_TARGET : adjust_target_vol;
+    uint32_t target_vpp = (!flow_freq_cfg.have_been_write_freq) ? VOL_TARGET : adjust_target_vol;
 #else
     #if Magic_Cool_Customer == AK_Anker
         uint32_t target_vpp = VOL_TARGET_1;
@@ -1064,7 +1071,7 @@ int magic_cool_scan_power_profile(uint32_t start_freq, uint32_t stop_freq, uint3
 int magic_cool_calc_impedance(uint32_t start_freq, uint32_t stop_freq, uint32_t step_freq)
 {
 #if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
-    uint32_t target_vpp = (!have_been_write_freq) ? VOL_TARGET : adjust_target_vol;
+    uint32_t target_vpp = (!flow_freq_cfg.have_been_write_freq) ? VOL_TARGET : adjust_target_vol;
 #else
     #if Magic_Cool_Customer == AK_Anker
         uint32_t target_vpp = VOL_TARGET_1;
@@ -1227,7 +1234,7 @@ void magic_cool_run_impedance(void)
     float cur_sum = 0.0;
     float flow = 0.0;
 #if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
-    uint32_t target_vpp = (!have_been_write_freq) ? VOL_TARGET : adjust_target_vol;
+    uint32_t target_vpp;
 #else
     #if Magic_Cool_Customer == AK_Anker
         uint32_t target_vpp = VOL_TARGET_1;
@@ -1235,6 +1242,9 @@ void magic_cool_run_impedance(void)
         uint32_t target_vpp = VOL_TARGET_70P;
     #endif
 #endif
+    flow_freq_cfg_init();
+
+    target_vpp = (!flow_freq_cfg.have_been_write_freq) ? VOL_TARGET : adjust_target_vol;
 
     OPA_Enable();
     // 从低频率开始，防止过冲烧坏气泵
@@ -1272,7 +1282,7 @@ void magic_cool_run_impedance(void)
     // NOTE: 范围从20K~30KHz扫描，找到接近最优频率的整数倍频率
     // if( magic_cool_freqstart == 20000 && magic_cool_freqstop == FREQ_MAX ) {
 #if ENABLE_WRITE_FREQ
-    if((FREQ_MAX-FREQ_MIN) >= 3000 && !have_been_write_freq) {
+    if((FREQ_MAX-FREQ_MIN) >= 3000 && !flow_freq_cfg.have_been_write_freq) {
 #else
     // if((FREQ_MAX-FREQ_MIN) >= 3000) {
 #endif
@@ -1393,7 +1403,7 @@ void magic_cool_run_impedance(void)
 
     #define SCAN_FREQ_STEP   50  //20 // 50
     #define SCAN_FREQ_RANGE  150  //60 // 100
-    if( !have_been_write_freq ) {
+    if( !flow_freq_cfg.have_been_write_freq ) {
         freq_min = magic_cool_freqstart + step_freq * pwr_max_idx - SCAN_FREQ_RANGE;
         freq_max = magic_cool_freqstart + step_freq * pwr_max_idx + SCAN_FREQ_RANGE;
 

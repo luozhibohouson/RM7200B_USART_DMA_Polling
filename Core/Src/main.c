@@ -290,7 +290,8 @@ void deep_sleep(void)
     static uint8_t sleep_time = 0;
     if( deep_sleep_flag == DEEP_SLEEP_FLAG_SLEEP ) {
 
-        magic_cool_mode = 0;
+        extern void close_all_output(void);
+        close_all_output();
 
         if( t10ms_f ) {
             t10ms_f = 0;
@@ -298,6 +299,12 @@ void deep_sleep(void)
         }
 
         if( sleep_time >= 5 ) {
+
+            #if ENABLE_WRITE_FREQ
+                extern void write_final_freq_to_flash(void);
+                write_final_freq_to_flash();
+            #endif
+
             // 复位各个模块
             RCC->APB1RSTR |= RCC_APB1Periph_OPA1 | \
                             RCC_APB1Periph_OPA2 | \
@@ -351,7 +358,7 @@ void deep_sleep(void)
 
             hardware_init(DISABLE);
 
-            sys_delayms(10);
+            sys_delayms(5);
 
             sleep_time = 0;
 
