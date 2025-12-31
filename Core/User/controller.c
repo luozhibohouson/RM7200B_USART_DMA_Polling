@@ -79,6 +79,9 @@ void key_scan(void)
     static uint8_t debounce_cnt2 = 0;
     static uint8_t key_status = 0;
     static uint32_t key2_current_time = 0;
+    static uint8_t key_pressed_flag = 0; // 新增状态标志
+    static uint8_t first_run = 1;
+
     const uint16_t key_long_time2 = 1000;  // 按键长按时间
     uint8_t change_flag = 0;
 
@@ -89,30 +92,50 @@ void key_scan(void)
 
     key2 = GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_8);
 
+    if (first_run) {
+        key2_last = key2;
+        first_run = 0;
+        return;
+    }
+
     if (key2_last != key2) {
         debounce_cnt2++;
         if (debounce_cnt2 >= 3) {
-            change_flag = 1;
             debounce_cnt2 = 0;
-
             key2_last = key2;
+
             if (key2 == 0) {
-                key_status |= 0x01;
+                // 按下：只记录状态，不立即触发
+                key_pressed_flag = 1;
                 key2_current_time = get_systick();
             } else {
-                key_status = 0;
+                // 释放：根据按下状态判断
+                if (key_pressed_flag == 1) {
+                    key_status = 0x01; // 短按松手触发
+                    change_flag = 1;
+                } else {
+                    key_status = 0;
+                }
+                key_pressed_flag = 0;
             }
         }
     } else {
         debounce_cnt2 = 0;
 
-        if( key2 == 0 ) {
-            if( key_status != 0x02 ) {
-                if( (get_systick() - key2_current_time) > key_long_time2 ) {
+        if (key2 == 0) {
+            // 持续按下检测长按
+            if (key_pressed_flag == 1) {
+                if ((get_systick() - key2_current_time) > key_long_time2) {
                     key2_current_time = get_systick();
-                    key_status = 0x02; //长按生效
+                    key_status = 0x02; // 长按触发
+                    key_pressed_flag = 2; // 标记为已长按
                     change_flag = 1;
                 }
+            }
+        } else {
+            // 释放后复位短按状态
+            if (key_status == 0x01) {
+                key_status = 0;
             }
         }
     }

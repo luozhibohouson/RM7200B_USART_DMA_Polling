@@ -1337,7 +1337,7 @@ void magic_cool_run_impedance(void)
     if((FREQ_MAX-FREQ_MIN) >= 3000)
 #endif
     {
-        step_freq = 500;
+        step_freq = 1000;
         magic_cool_freqstart = FREQ_MIN;
         magic_cool_freqstop = FREQ_MAX;
         len = magic_cool_scan_power_profile(magic_cool_freqstart, magic_cool_freqstop, step_freq);

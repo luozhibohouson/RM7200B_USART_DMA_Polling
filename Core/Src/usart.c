@@ -97,9 +97,9 @@ void USART_Configure(uint32_t Baudrate, uint8_t delay_enable)
     USART_InitTypeDef USART_InitStruct;
     NVIC_InitTypeDef  NVIC_InitStruct;
 
-    if( delay_enable != 0 ) {
-        sys_delayms(500); // 禁用SWD接口
-    }
+//    if( delay_enable != 0 ) {
+//        sys_delayms(500); // 禁用SWD接口
+//    }
 
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART1, ENABLE);
 
