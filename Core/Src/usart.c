@@ -1,6 +1,8 @@
 #include "usart.h"
 #include "usart1.h"
 #include "main.h"
+#include "adc.h"
+#include "controller.h"
 
 #ifndef ENABLE_QUERY_CMD
   #define ENABLE_QUERY_CMD 0
@@ -257,7 +259,7 @@ uint16_t crc16(uint8_t* buff, uint32_t len)
  */
 uint8_t usart_send_frame(uint8_t cmd, uint8_t *data, uint8_t data_len)
 {
-    uint8_t tx_buffer[16];  // 足够容纳任何响应帧：帧头(1)+指令(1)+长度(1)+数据(3)+CRC(2)+帧尾(2)=11字节
+    uint8_t tx_buffer[20];  // 足够容纳任何响应帧：帧头(1)+指令(1)+长度(1)+数据(3)+CRC(2)+帧尾(2)=11字节
     uint16_t frame_len = 0;
 
     // 检查数据长度，bootloader响应数据应该很小
@@ -393,6 +395,8 @@ static void handle_deep_sleep_cmd(uint8_t *data, uint16_t data_len)
             error_code = ERR_SUCCESS;
             extern void close_all_output(void);
             close_all_output();
+            extern void set_stop_delay_ms(bool enable);
+            set_stop_delay_ms(true);
         }
     }
 
@@ -402,6 +406,76 @@ static void handle_deep_sleep_cmd(uint8_t *data, uint16_t data_len)
     // 发送响应
     usart_send_frame(CMD_DEEP_SLEEP, response_data, sizeof(response_data));
 }
+
+/**
+ * @brief 处理查询气泵状态指令
+ * @param data 数据指针
+ * @param data_len 数据长度
+ */
+#if ENABLE_PUMP_STATUS_CMD
+static void handle_pump_status_cmd(uint8_t *data, uint16_t data_len)
+{
+    uint8_t response_data[11] = {0};
+
+    // 验证数据长度
+    if (data_len != CMD_PUMP_STATUS_DATA_LEN) {
+        uint8_t error_code = ERR_INVALID_LENGTH;
+        usart_send_frame(CMD_PUMP_STATUS, &error_code, 1);
+        return;
+    }
+
+    // 获取气泵状态数据
+    extern uint16_t magic_cool_vpp;
+    extern int32_t pwm1_duty_out;
+    extern float voltage_offset;
+    extern float voltage_gain;
+    extern float adc_dc_hvol_avg;
+#if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
+    extern float adc_dc_lcur_avg;
+#elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
+    extern float adc_dc_hcur_avg;
+#endif
+    extern bool scan_freq_enable;
+
+    // 1. 获取气泵频率 (Hz)
+    uint32_t freq = pwm_get_freq();
+
+    // 2. 计算Vpp电压*100 (如40.22V -> 4022)
+    float vpp_real = (float)(magic_cool_vpp + voltage_offset) / voltage_gain;
+    uint16_t vpp_x100 = (uint16_t)(vpp_real * 100.0f);
+
+    // 3. 计算dac电压*100 (如2.13V -> 213)
+    float dac_real = (float)pwm1_duty_out * MCU_VDD_GAIN / (float)(HSI_VALUE / PWM1_FREQ);
+    uint16_t dac_x100 = (uint16_t)(dac_real * 100.0f);
+
+    // 4. 计算功率*100 (如662.02mW -> 66202)
+    // ADC采样获取当前电压电流
+#if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
+    // adc_hvli_input_conv(ADC_CH_SIZE);
+    float pwr_mw = POWER_CAL(adc_dc_hvol_avg, adc_dc_lcur_avg);
+#elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
+    // adc_hv_input_conv(ADC_CH_SIZE);
+    float pwr_mw = POWER_CAL(adc_dc_hvol_avg, adc_dc_hcur_avg);
+#endif
+    uint32_t pwr_x100 = (uint32_t)(pwr_mw * 100.0f);
+
+    // 填充响应数据 (大端序)
+    response_data[0] = (freq >> 8) & 0xFF;       // 气泵频率高8位
+    response_data[1] = freq & 0xFF;              // 气泵频率低8位
+    response_data[2] = (vpp_x100 >> 8) & 0xFF;   // Vpp电压*100高8位
+    response_data[3] = vpp_x100 & 0xFF;          // Vpp电压*100低8位
+    response_data[4] = (dac_x100 >> 8) & 0xFF;   // dac电压*100高8位
+    response_data[5] = dac_x100 & 0xFF;          // dac电压*100低8位
+    response_data[6] = (pwr_x100 >> 24) & 0xFF;  // PWR*100 HH_8bit
+    response_data[7] = (pwr_x100 >> 16) & 0xFF;  // PWR*100 HL_8bit
+    response_data[8] = (pwr_x100 >> 8) & 0xFF;   // PWR*100 LH_8bit
+    response_data[9] = pwr_x100 & 0xFF;          // PWR*100 LL_8bit
+    response_data[10] = scan_freq_enable;        // 扫频使能标志
+
+    // 发送响应
+    usart_send_frame(CMD_PUMP_STATUS, response_data, sizeof(response_data));
+}
+#endif
 
 /**
  * @brief 处理故障报告指令
@@ -514,6 +588,12 @@ void usart_handle_protocol_command(uint8_t *frame_data, uint16_t frame_len)
         case CMD_FAULT_REPORT:
             handle_fault_report_cmd(data, data_len);
             break;
+
+#if ENABLE_PUMP_STATUS_CMD
+        case CMD_PUMP_STATUS:
+            handle_pump_status_cmd(data, data_len);
+            break;
+#endif
 
         case CMD_SYSTEM_UPGRADE:
             handle_system_upgrade_cmd(data, data_len);

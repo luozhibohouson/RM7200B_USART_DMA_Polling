@@ -48,7 +48,7 @@ extern "C" {
 /* Exported variables *************************************************************************************************/
 
 /* Exported functions *************************************************************************************************/
-void sys_delayms(int ms);
+uint8_t sys_delayms(int ms);
 uint32_t get_systick(void);
 
 #ifdef __cplusplus

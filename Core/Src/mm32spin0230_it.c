@@ -133,7 +133,7 @@ void SysTick_Handler(void)
     } else {
         t10ms_f = 0;
     }
-#if !ENABLE_USART
+#if !defined(ENABLE_USART)
     extern void key_scan();
     key_scan();
 #endif

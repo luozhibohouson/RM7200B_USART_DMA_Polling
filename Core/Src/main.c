@@ -146,15 +146,21 @@ void EXTI_Configure_deinit(void)
 /* Private variables **************************************************************************************************/
 
 /* Private functions **************************************************************************************************/
-void sys_delayms(int ms)
+uint8_t sys_delayms(int ms)
 {
     int tickx = sys_tick + ms;
 
     while(tickx > sys_tick) {
-#if ENABLE_USART
+#if defined(ENABLE_USART)
         uart_cmd_process();
+        extern bool get_stop_delay_ms(void);
+        if( get_stop_delay_ms() ) {
+            return 1;
+        }
 #endif
     }
+
+    return 0;
 }
 
 uint32_t get_systick(void)
@@ -181,7 +187,7 @@ int main(void)
     {
         // key_scan();
         rm_magic_run();
-#if ENABLE_USART
+#if defined(ENABLE_USART)
         uart_cmd_process();
 #endif
         deep_sleep();
@@ -193,10 +199,10 @@ int main(void)
   */
 void hardware_init(uint8_t delay_enable)
 {
-#if ENABLE_USART
+#if defined(ENABLE_USART)
     // 从boot跳转，需要延时。从休眠唤醒不需要延时
     USART_Configure(115200, delay_enable);
-#elif ENABLE_PRINTF
+#elif defined(ENABLE_PRINTF)
     USART_PrintfConfigure(1000000);
 #endif
 
@@ -298,12 +304,15 @@ void deep_sleep(void)
             sleep_time++;
         }
 
-        if( sleep_time >= 5 ) {
-
+        if( sleep_time >= 2 )
+        {
             #if ENABLE_WRITE_FREQ
                 extern void write_final_freq_to_flash(void);
                 write_final_freq_to_flash();
             #endif
+
+            // 等待USART1发送完成
+            while (RESET == USART_GetFlagStatus(USART1, USART_FLAG_TC));
 
             // 复位各个模块
             RCC->APB1RSTR |= RCC_APB1Periph_OPA1 | \
@@ -358,11 +367,14 @@ void deep_sleep(void)
 
             hardware_init(DISABLE);
 
-            sys_delayms(5);
+            // sys_delayms(5);
 
             sleep_time = 0;
 
             deep_sleep_flag = DEEP_SLEEP_FLAG_WAKEUP;
+
+            extern void set_stop_delay_ms(bool enable);
+            set_stop_delay_ms(false);
 
             // 发送唤醒标志给上位机
             extern uint8_t usart_send_frame(uint8_t cmd, uint8_t *data, uint8_t data_len);

@@ -41,7 +41,7 @@
 #include "define_self_test_12x12.h"
 
 // printf 空操作屏蔽保持全局一致性
-#if (defined(ENABLE_PRINTF) && !(ENABLE_PRINTF)) || (ENABLE_USART)
+#if (!defined(ENABLE_PRINTF)) || (defined(ENABLE_USART))
 #define printf(fmt, ...) ((void)0)
 #endif
 

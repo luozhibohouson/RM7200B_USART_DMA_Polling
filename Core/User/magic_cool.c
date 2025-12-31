@@ -48,6 +48,10 @@
 #define ENABLE_WATER_INTRUSION 0
 #endif
 
+/* 延时宏：用于快速响应休眠指令 */
+#define DELAY_MS_OR_RETURN(ms, ret_val) do { if(sys_delayms(ms)) return (ret_val); } while(0)
+#define DELAY_MS_OR_RETURN_VOID(ms)     do { if(sys_delayms(ms)) return; } while(0)
+
 /*****************************************************************/
 #if ENABLE_QUERY_CMD
 typedef struct {
@@ -75,6 +79,8 @@ static volatile bool pending_write_freq_to_flash = false;
 #endif
 
 bool stop_scan_freq = false;
+
+bool stop_delay_ms = false;
 
 uint8_t current_flow_level = FLOW_LEVEL_100_PERCENT;  // 当前流量档位
 protocol_fault_t fault_status = FAULT_NORMAL;  // 当前故障状态
@@ -138,7 +144,7 @@ float magic_cool_ph_proxth = 0;
 uint32_t magic_cool_freqstart = 22500, magic_cool_freqstop = 29000;
 uint32_t magic_cool_runfreq = 25000;
 uint32_t magic_cool_target_vol = VOL_TARGET;
-#if ENABLE_KEY_VOL_CFG || ENABLE_USART
+#if ENABLE_KEY_VOL_CFG || defined(ENABLE_USART)
 uint32_t adjust_target_vol = VOL_TARGET; //扫频后以2档启动
 #endif
 
@@ -153,6 +159,16 @@ uint32_t debug_tick = 0;
 /*******************************************************************/
 /*******************************************************************/
 /*******************************************************************/
+void set_stop_delay_ms(bool enable)
+{
+    stop_delay_ms = enable;
+}
+
+bool get_stop_delay_ms(void)
+{
+    return stop_delay_ms;
+}
+
 #if ENABLE_QUERY_CMD
 uint32_t get_max_vol(void)
 {
@@ -226,7 +242,7 @@ static uint32_t get_freq_from_scan_index(uint32_t start_freq, uint16_t step, uin
 
 bool is_target_vol_change(void)
 {
-#if ENABLE_KEY_VOL_CFG || ENABLE_USART
+#if ENABLE_KEY_VOL_CFG || defined(ENABLE_USART)
     if ( adjust_target_vol != magic_cool_target_vol ) {
         return true;
     }
@@ -257,12 +273,12 @@ static void is_over_voltage(uint16_t vpp, FunctionalState over_voltage_check_ena
         // 扫频时，过压不关输出
         if( over_voltage_check_enable == ENABLE ) {
             close_all_output();
+            // 需要报过压故障
+            ret = FAULT_OVER_VOLTAGE;
         }
-        // 需要报过压故障
-        ret = FAULT_OVER_VOLTAGE;
     }
     // 认为是调档失败
-#if ENABLE_KEY_VOL_CFG || ENABLE_USART
+#if ENABLE_KEY_VOL_CFG || defined(ENABLE_USART)
     else if( vol >= (magic_cool_target_vol + 5) )
 #else
     else if( vol >= (VOL_TARGET + 5) )
@@ -273,13 +289,8 @@ static void is_over_voltage(uint16_t vpp, FunctionalState over_voltage_check_ena
         printf("scan enable:%d. vol setting failed\r\n", __LINE__);
     } else {
         switch( fault_vol_status ) {
-            case FAULT_OVER_VOLTAGE:
-                if( vol > (VOL_TARGET_MAX - 3) ) {
-                    ret = FAULT_OVER_VOLTAGE;
-                }
-                break;
             case FAULT_SETTING_FAILED:
-            #if ENABLE_KEY_VOL_CFG || ENABLE_USART
+            #if ENABLE_KEY_VOL_CFG || defined(ENABLE_USART)
                 if( vol >= (magic_cool_target_vol + 3) )
             #else
                 if( vol >= (VOL_TARGET + 3) )
@@ -397,7 +408,7 @@ static void check_fault_status(void)
         last_fault_status = fault_status;
         if (fault_status != FAULT_NORMAL) {
             fault_report_active(fault_status);
-            if(fault_status == FAULT_OVER_VOLTAGE || \
+            if( fault_status == FAULT_OVER_VOLTAGE || \
                 fault_status == FAULT_OVER_CURRENT || \
                 fault_status == FAULT_NOT_LOAD ) {
                     close_all_output();
@@ -621,6 +632,26 @@ static void flow_freq_cfg_init(void)
 //TODO: 只有按键关闭输出或发deepsleep指令才会保存数据,需要注意高温环境下不能保存
 void write_final_freq_to_flash(void)
 {
+    // ============ 验证0：扫频状态检查 ============
+    if (scan_freq_enable) {
+        printf("scanning freq, skip write\r\n");
+        return;
+    }
+
+    // ============ 验证1：首次扫频检查 ============（新增）
+    if (first_scan_freq) {
+        printf("first scan not complete, skip write\r\n");
+        return;
+    }
+
+#if defined(ENABLE_HIGH_TEMP_SCAN) && (ENABLE_HIGH_TEMP_SCAN == 1)
+    // ============ 验证2：高温环境检查 ============（新增）
+    if (enable_high_temp_scan) {
+        printf("high temp detected, skip write\r\n");
+        return;
+    }
+#endif
+
     uint32_t freq = pwm_get_freq();
 
     // 必须校准过才能保存
@@ -629,15 +660,21 @@ void write_final_freq_to_flash(void)
         return;
     }
 
-    // ============ 验证1：基本频率范围检查 ============
+    // ============ 验证3：基本频率范围检查 ============
     if (freq < FREQ_MIN || freq > FREQ_MAX) {
         printf("freq out of range, skip: %d\r\n", freq);
         return;
     }
 
-    // ============ 验证2：故障状态检查 ============
+    // ============ 验证4：故障状态检查 ============
     if (fault_status != FAULT_NORMAL) {
         printf("fault detected, skip write\r\n");
+        return;
+    }
+
+    // ============ 验证5：过压/过流即时检查 ============
+    if (fault_vol_status != FAULT_NORMAL || fault_cur_status != FAULT_NORMAL) {
+        printf("vol/cur fault detected, skip write\r\n");
         return;
     }
 
@@ -762,9 +799,6 @@ void magic_cool_key_scan(uint8_t key1, uint8_t key2, uint8_t key3)
     if (key2 == 0x01) {
         if (magic_cool_mode == 0) {
             magic_cool_mode = 1;
-        #if ENABLE_KEY_VOL_CFG
-            adjust_target_vol = VOL_TARGET_60P;
-        #endif
         } else {
         #if ENABLE_KEY_VOL_CFG
             #if Magic_Cool_Customer == AK_Anker
@@ -953,17 +987,19 @@ int magic_cool_voltage_closeloop_dcdc(uint32_t vol_target, uint32_t vol_err, uin
             magic_cool_vpp = vpp;
             return 1;
         }
-
-        if( (first_scan_freq == false) && (adjust_target_vol != magic_cool_target_vol) ) {
+    #if ENABLE_KEY_VOL_CFG || defined(ENABLE_USART)
+        if( (first_scan_freq == false) && (adjust_target_vol != magic_cool_target_vol) )
+        {
             stop_scan_freq = true;
             printf("stop scan freq\r\n");
             return 1;
         }
+    #endif
 
-        sys_delayms(20);
+        magic_cool_vpp = vpp;
+        DELAY_MS_OR_RETURN(20, 1);
     }
 
-    magic_cool_vpp = vpp;
     return 1;
 }
 
@@ -1027,13 +1063,18 @@ void magic_cool_calc_current(FunctionalState not_load_check_enable)
 
 int magic_cool_scan_power_profile(uint32_t start_freq, uint32_t stop_freq, uint32_t step_freq)
 {
+    uint32_t target_vpp = VOL_TARGET;
 #if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
-    uint32_t target_vpp = (!flow_freq_cfg.have_been_write_freq) ? VOL_TARGET : adjust_target_vol;
+    #if ENABLE_WRITE_FREQ
+        #if ENABLE_KEY_VOL_CFG || defined(ENABLE_USART)
+            target_vpp = (!flow_freq_cfg.have_been_write_freq) ? VOL_TARGET : adjust_target_vol;
+        #endif
+    #endif
 #else
     #if Magic_Cool_Customer == AK_Anker
-        uint32_t target_vpp = VOL_TARGET_1;
+        target_vpp = VOL_TARGET_1;
     #else
-        uint32_t target_vpp = VOL_TARGET_70P;
+        target_vpp = VOL_TARGET_70P;
     #endif
 #endif
 
@@ -1045,10 +1086,10 @@ int magic_cool_scan_power_profile(uint32_t start_freq, uint32_t stop_freq, uint3
         pwm_set_freq(freq);
         magic_cool_voltage_closeloop(target_vpp, 2, 100, DISABLE);// 电压闭环
         if( fault_vol_status == FAULT_NORMAL ) {
-            sys_delayms(20);
+            DELAY_MS_OR_RETURN(20, 1);
             magic_cool_voltage_closeloop(target_vpp, 2, 100, DISABLE);// 电压闭环
             if( fault_vol_status == FAULT_NORMAL ) {
-                sys_delayms(100);
+                DELAY_MS_OR_RETURN(100, 1);
             }
         }
 
@@ -1070,13 +1111,18 @@ int magic_cool_scan_power_profile(uint32_t start_freq, uint32_t stop_freq, uint3
 
 int magic_cool_calc_impedance(uint32_t start_freq, uint32_t stop_freq, uint32_t step_freq)
 {
+    uint32_t target_vpp = VOL_TARGET;
 #if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
-    uint32_t target_vpp = (!flow_freq_cfg.have_been_write_freq) ? VOL_TARGET : adjust_target_vol;
+    #if ENABLE_WRITE_FREQ
+        #if ENABLE_KEY_VOL_CFG || defined(ENABLE_USART)
+            target_vpp = (!flow_freq_cfg.have_been_write_freq) ? VOL_TARGET : adjust_target_vol;
+        #endif
+    #endif
 #else
     #if Magic_Cool_Customer == AK_Anker
-        uint32_t target_vpp = VOL_TARGET_1;
+        target_vpp = VOL_TARGET_1;
     #else
-        uint32_t target_vpp = VOL_TARGET_70P;
+        target_vpp = VOL_TARGET_70P;
     #endif
 #endif
     int ret = 0, index = 0, i;
@@ -1174,7 +1220,7 @@ int magic_cool_calc_impedance(uint32_t start_freq, uint32_t stop_freq, uint32_t 
 #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
         // 电压无故障，对应频率则进行功率比较
         if( fault_vol_status == FAULT_NORMAL ) {
-            sys_delayms(100);
+            DELAY_MS_OR_RETURN(100, 1);
             freq_pwr[index] = hvol * lcur;
             // 低电流
             magic_cool_calc_current(DISABLE);
@@ -1233,8 +1279,9 @@ void magic_cool_run_impedance(void)
     float cur = 0.0;
     float cur_sum = 0.0;
     float flow = 0.0;
+    uint32_t step_freq;
 #if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
-    uint32_t target_vpp;
+    uint32_t target_vpp = VOL_TARGET;
 #else
     #if Magic_Cool_Customer == AK_Anker
         uint32_t target_vpp = VOL_TARGET_1;
@@ -1242,9 +1289,12 @@ void magic_cool_run_impedance(void)
         uint32_t target_vpp = VOL_TARGET_70P;
     #endif
 #endif
+#if ENABLE_WRITE_FREQ
     flow_freq_cfg_init();
-
-    target_vpp = (!flow_freq_cfg.have_been_write_freq) ? VOL_TARGET : adjust_target_vol;
+    #if ENABLE_KEY_VOL_CFG || defined(ENABLE_USART)
+        target_vpp = (!flow_freq_cfg.have_been_write_freq) ? VOL_TARGET : adjust_target_vol;
+    #endif
+#endif
 
     OPA_Enable();
     // 从低频率开始，防止过冲烧坏气泵
@@ -1252,9 +1302,9 @@ void magic_cool_run_impedance(void)
     pwm1_duty_out = PWM1_MIN_POWER_DUTY;
     pwm1_set_duty(pwm1_duty_out);
     set_power_enable(ENABLE);
-    sys_delayms(2);
+    DELAY_MS_OR_RETURN_VOID(2);
     dcdc_power_control(ENABLE);
-    sys_delayms(10);    //NOTE:增加延时,防止短时间电压过冲
+    DELAY_MS_OR_RETURN_VOID(10); //NOTE:增加延时,防止短时间电压过冲
     // 升压稳定后再开H桥PWM
     pwm_set_freq(magic_cool_freqstart);
     pwm_enable(ENABLE);
@@ -1282,13 +1332,15 @@ void magic_cool_run_impedance(void)
     // NOTE: 范围从20K~30KHz扫描，找到接近最优频率的整数倍频率
     // if( magic_cool_freqstart == 20000 && magic_cool_freqstop == FREQ_MAX ) {
 #if ENABLE_WRITE_FREQ
-    if((FREQ_MAX-FREQ_MIN) >= 3000 && !flow_freq_cfg.have_been_write_freq) {
+    if((FREQ_MAX-FREQ_MIN) >= 3000 && !flow_freq_cfg.have_been_write_freq)
 #else
-    // if((FREQ_MAX-FREQ_MIN) >= 3000) {
+    if((FREQ_MAX-FREQ_MIN) >= 3000)
 #endif
+    {
+        step_freq = 500;
         magic_cool_freqstart = FREQ_MIN;
         magic_cool_freqstop = FREQ_MAX;
-        len = magic_cool_scan_power_profile(magic_cool_freqstart, magic_cool_freqstop, 1000);
+        len = magic_cool_scan_power_profile(magic_cool_freqstart, magic_cool_freqstop, step_freq);
         uint32_t val;
         if( find_extremum_minima_i(freq_pwr, len, (uint32_t *)&val, &idx_min) == -1 ) {
             magic_cool_mode = 0;
@@ -1310,8 +1362,8 @@ void magic_cool_run_impedance(void)
             idx_end++;
         }
 
-        uint32_t freq_start_found = magic_cool_freqstart + 1000 * idx_start;
-        uint32_t freq_end_found = magic_cool_freqstart + 1000 * idx_end;
+        uint32_t freq_start_found = magic_cool_freqstart + step_freq * idx_start;
+        uint32_t freq_end_found = magic_cool_freqstart + step_freq * idx_end;
 
         printf("min freq range:%d-%d, min val:%d\r\n", freq_start_found, freq_end_found, (int)val);
 
@@ -1321,9 +1373,9 @@ void magic_cool_run_impedance(void)
         printf("magic_cool_freqstart:%d, magic_cool_freqstop:%d\r\n", magic_cool_freqstart, magic_cool_freqstop);
     }
 
-    uint32_t step_freq = 200;
+    step_freq = 200;
     len = magic_cool_calc_impedance(magic_cool_freqstart, magic_cool_freqstop, step_freq);  // 阻抗/频率谱
-    sys_delayms(100);
+    DELAY_MS_OR_RETURN_VOID(100);
 
     /*  找极值方法：
      *  1. 先找极小值，如果有多个极小值，则选择最小的极小值
@@ -1403,7 +1455,10 @@ void magic_cool_run_impedance(void)
 
     #define SCAN_FREQ_STEP   50  //20 // 50
     #define SCAN_FREQ_RANGE  150  //60 // 100
-    if( !flow_freq_cfg.have_been_write_freq ) {
+#if ENABLE_WRITE_FREQ
+    if( !flow_freq_cfg.have_been_write_freq )
+#endif
+    {
         freq_min = magic_cool_freqstart + step_freq * pwr_max_idx - SCAN_FREQ_RANGE;
         freq_max = magic_cool_freqstart + step_freq * pwr_max_idx + SCAN_FREQ_RANGE;
 
@@ -1432,11 +1487,12 @@ void magic_cool_run_impedance(void)
         pwr_max_idx = impedance_result.max_index;
         magic_cool_pwr_max = freq_pwr[pwr_max_idx];
         gold_freq = get_freq_from_scan_index(freq_min, SCAN_FREQ_STEP, pwr_max_idx);
-    } else {
-	#if ENABLE_WRITE_FREQ
-        gold_freq = flow_freq_cfg.normal_work_freq;
-	#endif
     }
+#if ENABLE_WRITE_FREQ
+    else {
+        gold_freq = flow_freq_cfg.normal_work_freq;
+    }
+#endif
 
     magic_cool_runfreq = gold_freq; // 初始频率为相位最大值对应的频率
     printf("[sys:%d] freq:%d, pwr max :%d\r\n", get_systick()-debug_tick, magic_cool_runfreq, magic_cool_pwr_max);
@@ -2118,12 +2174,12 @@ static uint32_t measure_power_with_config(const power_measure_config_t *config)
 
     // 可选延时
     if (config->delay_before_ms > 0) {
-        sys_delayms(config->delay_before_ms);
+        DELAY_MS_OR_RETURN(config->delay_before_ms, 0);
     }
 
     // 采样并累加功率
     for (uint8_t i = 0; i < config->sample_count; i++) {
-        sys_delayms(10);
+        DELAY_MS_OR_RETURN(10, 0);
         adc_sample_t sample = adc_sample_once();
         power_sum += calculate_power(sample);
     }
@@ -2152,7 +2208,7 @@ static uint32_t measure_power_simple(uint32_t freq, uint8_t n)
     magic_cool_voltage_closeloop(config.target_vol, config.vol_err, 100, config.check_overvoltage);
 
     if (fault_vol_status == FAULT_NORMAL) {
-        sys_delayms(config.delay_before_ms);
+        DELAY_MS_OR_RETURN(config.delay_before_ms, 0);
         return measure_power_with_config(&config);
     }
     return 0;
@@ -2194,12 +2250,12 @@ static scan_result_t scan_frequency_range(const scan_config_t *cfg)
 
         // 根据故障状态决定是否测量功率
         if (fault_vol_status == FAULT_NORMAL) {
-            sys_delayms(100);
+            DELAY_MS_OR_RETURN(100, result);
             pwrx = 0;
 
             // 采样并累加功率
             for (uint8_t i = 0; i < cfg->sample_count; i++) {
-                sys_delayms(10);
+                DELAY_MS_OR_RETURN(10, result);
                 adc_sample_t sample = adc_sample_once();
                 pwrx += calculate_power(sample);
             }
@@ -2383,7 +2439,7 @@ static void track_perform_scan(uint8_t n)
     scan_result_t result = scan_frequency_range(&scan_cfg);
 
     if (!magic_cool_mode) return;
-#if ENABLE_KEY_VOL_CFG || ENABLE_USART
+#if ENABLE_KEY_VOL_CFG || defined(ENABLE_USART)
     if( adjust_target_vol != magic_cool_target_vol ) return;
 #endif
     if (result.all_zero) {
@@ -2394,6 +2450,9 @@ static void track_perform_scan(uint8_t n)
         uint32_t best_freq = (pwr_start > pwr_stop) ? scan_cfg.start_freq : scan_cfg.stop_freq;
         pwm_set_freq(best_freq);
         magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 100, DISABLE);
+        printf("scan enable:%d. all_zero, continue scan\r\n", __LINE__);
+        scan_freq_enable = true;  // 继续循环扫频
+        return;
     } else {
         uint32_t best_freq = get_freq_from_scan_index(scan_cfg.start_freq, track_state.freq_step, result.max_index);
         magic_cool_pwr_max = result.max_power;
@@ -2430,12 +2489,12 @@ static bool track_check_power_stability(uint8_t n)
     adc_sample_t sample = {0};
     // 测量当前功率
     magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 50, ENABLE);
-    sys_delayms(50);
+    DELAY_MS_OR_RETURN(50, false);
     magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 50, ENABLE);
 
     uint32_t pwrx = 0;
     for (int i = 0; i < n; i++) {
-        sys_delayms(10);
+        DELAY_MS_OR_RETURN(10, false);
         sample = adc_sample_once();
         pwrx += calculate_power(sample);
     }
@@ -2640,7 +2699,7 @@ void magic_cool_freq_track_current(void)
 
     // 循环直到不需要扫频
     while (scan_freq_enable) {
-    #if ENABLE_KEY_VOL_CFG || ENABLE_USART
+    #if ENABLE_KEY_VOL_CFG || defined(ENABLE_USART)
         if( adjust_target_vol != magic_cool_target_vol ) {
             scan_freq_enable = false;
             return;
@@ -2665,7 +2724,7 @@ void magic_cool_freq_track_current(void)
 
 void magic_cool_vpp_change(void)
 {
-#if ENABLE_KEY_VOL_CFG || ENABLE_USART
+#if ENABLE_KEY_VOL_CFG || defined(ENABLE_USART)
     while( (adjust_target_vol != magic_cool_target_vol) || (first_scan_freq == true) ) {
 
         if( adjust_target_vol != VOL_TARGET || first_scan_freq == false ) {
@@ -2707,7 +2766,7 @@ void magic_cool_vpp_change(void)
 
         if (fault_vol_status == FAULT_NORMAL) {
             for (uint8_t i = 0; i < 5; i++) {
-                sys_delayms(10);
+                DELAY_MS_OR_RETURN_VOID(10);
                 adc_sample_t sample = adc_sample_once();
                 pwr += calculate_power(sample);
             }
@@ -2775,7 +2834,7 @@ void magic_cool_set_target_vol(uint32_t vol)
 void magic_cool_set_target_vol_by_flow(uint8_t flow_level)
 {
     uint32_t target_vol = 0;
-#if ENABLE_USART && Magic_Cool_Customer != AK_Anker
+#if defined(ENABLE_USART) && Magic_Cool_Customer != AK_Anker
     switch (flow_level) {
         case FLOW_LEVEL_90_PERCENT: target_vol = VOL_TARGET_90P; break;
         case FLOW_LEVEL_80_PERCENT: target_vol = VOL_TARGET_80P; break;

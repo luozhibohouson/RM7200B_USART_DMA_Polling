@@ -104,11 +104,6 @@
 // 按键调整电压
 #define ENABLE_KEY_VOL_CFG          0
 
-// 打印开关
-#define ENABLE_PRINTF               1
-
-// 串口通讯开关
-#define ENABLE_USART                1
 
 #endif // Magic_Cool_Customer == XM_Xiaomi
 

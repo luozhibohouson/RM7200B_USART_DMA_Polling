@@ -21,9 +21,6 @@
 #define     ENABLE_PER             1  // 百分比阈值设定 or 固定阈值设定
 #define     ENABLE_WATER_INTRUSION 0  // 进水检测开关
 #define     ENABLE_KEY_VOL_CFG     1  // 按键调整电压
-#define     ENABLE_PRINTF          1  // 打印开关
-#define     ENABLE_USART           0  // 串口通讯开关
-// --- ENABLE_USART优先级最高，开启后，printf无效 ---
 // ================================================
 
 // =================== 气泵频率设定 ===================
