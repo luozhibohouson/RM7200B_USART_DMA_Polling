@@ -429,7 +429,6 @@ static void handle_pump_status_cmd(uint8_t *data, uint16_t data_len)
     extern int32_t pwm1_duty_out;
     extern float voltage_offset;
     extern float voltage_gain;
-    extern float adc_dc_hvol_avg;
 #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
     extern float adc_dc_lcur_avg;
 #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH

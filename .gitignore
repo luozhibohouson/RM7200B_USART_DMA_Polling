@@ -13,7 +13,7 @@ MDK-ARM/hex2bin.py
 *.hex
 *.bin
 *.txt
-Core/User/TODO.list.c
+TODO.list.c
 MDK-ARM/Listings/
 *.csv
 *.xlsx

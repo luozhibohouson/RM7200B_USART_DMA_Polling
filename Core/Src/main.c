@@ -92,7 +92,7 @@ void app_upgrade_success(void)
     flash_erase_page((uint16_t)(PARAM_START_ADDR / FLASH_PAGE_SIZE));
     flash_write_halfword(PARAM_START_ADDR, (uint16_t*)&app_info, sizeof(app_info));
 #if defined(ERASE_FLOW_CFG) && (ENABLE_WRITE_FREQ == 1)
-    //TODO: 每次升级成功后擦除保留的频率值
+    //NOTE: 每次升级成功后擦除保留的频率值
     extern void erase_flow_freq_cfg(void);
     erase_flow_freq_cfg();
 #endif
@@ -218,76 +218,6 @@ void hardware_deinit(void)
 {
 
 }
-
-extern volatile bool t1s_f;
-extern uint8_t  magic_cool_mode;
-// void deep_sleep(void)
-// {
-//     static uint8_t sleep_time = 0;
-//     if( t1s_f ) {
-//         t1s_f = 0;
-//         sleep_time++;
-//     }
-//     if( !magic_cool_mode ) {
-//         if( sleep_time > 5 ) {
-
-//             // 复位各个模块
-//             RCC->APB1RSTR |= RCC_APB1Periph_OPA1 | \
-//                             RCC_APB1Periph_OPA2 | \
-//                             RCC_APB1Periph_ADC1 | \
-//                             RCC_APB1Periph_USART1 | \
-//                             RCC_APB1Periph_TIM13 | \
-//                             RCC_APB1Periph_TIM1;
-
-//             RCC->APB1RSTR &= ~(RCC_APB1Periph_OPA1 | \
-//                             RCC_APB1Periph_OPA2 | \
-//                             RCC_APB1Periph_ADC1 | \
-//                             RCC_APB1Periph_USART1 | \
-//                             RCC_APB1Periph_TIM13 | \
-//                             RCC_APB1Periph_TIM1);
-
-//             RCC->AHBRSTR |= RCC_AHBPeriph_DMA;
-//             RCC->AHBRSTR &= ~(RCC_AHBPeriph_DMA);
-
-//             // 配置GPIO为模拟输入
-//             GPIO_InitTypeDef  GPIO_InitStruct;
-
-//             GPIO_StructInit(&GPIO_InitStruct);
-//             GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_All;
-//             GPIO_InitStruct.GPIO_Speed  = GPIO_Speed_High;
-//             GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_Out_PP;
-//             GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-//             GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_All;
-//             GPIO_InitStruct.GPIO_Speed  = GPIO_Speed_High;
-//             GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_Out_PP;
-//             GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-//             GPIO_WriteBit(GPIOA, GPIO_Pin_15, Bit_SET);
-//             GPIO_WriteBit(GPIOA, GPIO_Pin_9, Bit_RESET);
-//             GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_15|GPIO_Pin_9;
-//             GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_Out_PP;
-//             GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-//             EXTI_Configure();
-
-//             __nop();__nop();__nop();
-//             __nop();__nop();__nop();
-
-//             SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
-//             __WFI();
-
-//             __nop();__nop();__nop();
-//             __nop();__nop();__nop();
-
-//             sleep_time = 0;
-
-//             hardware_init(DISABLE);
-//         }
-//     } else {
-//         sleep_time = 0;
-//     }
-// }
 
 extern volatile bool t10ms_f;
 uint8_t deep_sleep_flag = 0;
