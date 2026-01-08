@@ -142,6 +142,74 @@ uint32_t debug_tick = 0;
 /*******************************************************************/
 /*******************************************************************/
 /*******************************************************************/
+#if (!defined(ENABLE_PRINTF)) || (defined(ENABLE_USART))
+// DEBUG
+static uint32_t same_freq_work_time = 0;
+static uint32_t total_work_time = 0;
+static uint32_t work_freq = 0;
+void reset_work_time_status( void )
+{
+    same_freq_work_time = get_systick(); // 1ms为单位
+    total_work_time = get_systick();
+    work_freq = pwm_get_freq();
+}
+
+void printf_work_time( void )
+{
+    if(magic_cool_mode == 0)
+        return;
+
+    uint32_t now = get_systick();
+
+    /* ---------- total work time：每跨过一个10s桶打印一次 ---------- */
+    static uint32_t last_total_bucket = 0U; // 0,1,2,... 对应 0~9s,10~19s,...
+    uint32_t tick_total = now - total_work_time;
+    uint32_t cur_total_bucket = tick_total / 10000U;
+
+    if(cur_total_bucket != last_total_bucket)
+    {
+        last_total_bucket = cur_total_bucket;
+
+        uint32_t total_sec = tick_total / 1000U;
+        uint32_t hh = total_sec / 3600U;
+        uint32_t mm = (total_sec % 3600U) / 60U;
+        uint32_t ss = total_sec % 60U;
+
+        printf( "[DEBUG PRINTF] TOTAL WORK TIME: %02lu:%02lu:%02lu\r\n", ( unsigned long ) hh, ( unsigned long ) mm,
+            ( unsigned long ) ss );
+    }
+
+    /* ---------- same freq time：稳定区间内，每跨过一个10s桶打印一次 ---------- */
+    uint32_t freq = pwm_get_freq();
+    int32_t df = ( int32_t ) freq - ( int32_t ) work_freq;
+
+    if((df >= -20) && (df <= 20))
+    {
+        static uint32_t last_same_bucket = 0U;
+        uint32_t tick_same = now - same_freq_work_time;
+        uint32_t cur_same_bucket = tick_same / 10000U;
+
+        if(cur_same_bucket != last_same_bucket)
+        {
+            last_same_bucket = cur_same_bucket;
+
+            uint32_t total_sec = tick_same / 1000U;
+            uint32_t hh = total_sec / 3600U;
+            uint32_t mm = (total_sec % 3600U) / 60U;
+            uint32_t ss = total_sec % 60U;
+
+            printf( "[DEBUG PRINTF] SAME FREQ TIME:%02lu:%02lu:%02lu\r\n", ( unsigned long ) hh, ( unsigned long ) mm,
+                ( unsigned long ) ss );
+        }
+    }
+    else
+    {
+        same_freq_work_time = now;
+        work_freq = freq;
+    }
+}
+#endif
+
 void set_stop_delay_ms(bool value)
 {
     stop_delay_ms = value;
@@ -1281,6 +1349,10 @@ void magic_cool_run_impedance(void)
 #if ENABLE_WATER_INTRUSION
     reset_water_intrusion_flag = true;
 #endif
+
+#if (!defined(ENABLE_PRINTF)) || (defined(ENABLE_USART))
+    reset_work_time_status();
+#endif
 }
 
 #if MAGIC_COOL_TRACK_DEFAULT == MAGIC_COOL_TRACK_CURRENT
@@ -2146,13 +2218,13 @@ void magic_cool_idle(void)
         OPA_Disable();
         dcdc_power_control(DISABLE);
 
-        // 每3秒执行一次零点校准
-        if (get_systick() >= next_calibration_tick) {
-            #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
-                adc_hvli_input_conv(ADC_CH_SIZE);
-            #endif
-            next_calibration_tick = get_systick() + 3000; // 设置下一次校准时间
-        }
+        // // 每3秒执行一次零点校准
+        // if (get_systick() >= next_calibration_tick) {
+        //     #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
+        //         adc_hvli_input_conv(ADC_CH_SIZE);
+        //     #endif
+        //     next_calibration_tick = get_systick() + 3000; // 设置下一次校准时间
+        // }
     #endif
 }
 
@@ -2182,6 +2254,10 @@ void magic_cool_run(void)
     }
 
     check_fault_status();
+
+#if (!defined(ENABLE_PRINTF)) || (defined(ENABLE_USART))
+    printf_work_time();
+#endif
 }
 
 #endif
