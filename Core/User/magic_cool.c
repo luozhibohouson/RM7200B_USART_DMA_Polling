@@ -245,6 +245,7 @@ uint32_t get_current_cur(void)
 void magic_cool_set_limt(uint32_t freq_min, uint32_t freq_max);
 static void dcdc_power_control(uint8_t enable);
 void write_final_freq_to_flash(void);
+void maigc_cool_test_vpp(void);
 // ==================== 架构优化：类型定义和函数声明 ====================
 // ADC采样数据结构
 typedef struct {
@@ -341,8 +342,8 @@ static void is_over_voltage(uint16_t vpp, FunctionalState over_voltage_check_ena
 #endif
     {
         ret = FAULT_SETTING_FAILED;
-        scan_freq_enable = true;
-        printf("scan enable:%d. vol setting failed\r\n", __LINE__);
+        // scan_freq_enable = true;
+        // printf("scan enable:%d. vol setting failed\r\n", __LINE__);
     } else {
         switch( fault_vol_status ) {
             case FAULT_SETTING_FAILED:
@@ -353,8 +354,8 @@ static void is_over_voltage(uint16_t vpp, FunctionalState over_voltage_check_ena
             #endif
                 {
                     ret = FAULT_SETTING_FAILED;
-                    scan_freq_enable = true;
-                    printf("scan enable:%d. vol setting failed\r\n", __LINE__);
+                    // scan_freq_enable = true;
+                    // printf("scan enable:%d. vol setting failed\r\n", __LINE__);
                 }
                 break;
             default:
@@ -566,7 +567,7 @@ bool flow_freq_read_from_flash(_flow_freq_cfg_t *cfg)
 
     uint32_t addr = FLOW_FREQ_CFG_ADDR + valid_idx * CFG_RECORD_SIZE;
     flash_read_bytes(addr, (uint8_t*)cfg, sizeof(*cfg));
-    printf("\r\n read flow freq cfg success, slot: %d\r\n", valid_idx);
+    printf("\r\nread flow freq cfg success, slot: %d\r\n", valid_idx);
     return true;
 }
 
@@ -742,8 +743,8 @@ void write_final_freq_to_flash(void)
     #define FREQ_SAVE_TOLERANCE  300  // 容许偏差±300Hz（可根据实际调整到200-500Hz）
 
     // 检查已保存的频率是否有效（在合理的工作范围内，比如25k-29k）
-    bool has_valid_calibration = (flow_freq_cfg.normal_work_freq >= FREQ_MIN &&
-                                   flow_freq_cfg.normal_work_freq <= FREQ_MAX);
+    bool has_valid_calibration = ( flow_freq_cfg.normal_work_freq >= FREQ_MIN &&
+                                   flow_freq_cfg.normal_work_freq <= FREQ_MAX );
 
     if (has_valid_calibration) {
         int32_t freq_diff = (int32_t)freq - (int32_t)flow_freq_cfg.normal_work_freq;
@@ -752,6 +753,11 @@ void write_final_freq_to_flash(void)
         if (freq_diff > FREQ_SAVE_TOLERANCE) {
             // 偏差过大，可能是异常状态（高温漂移、故障等）
             printf("freq drift too large: saved=%d, current=%d, diff=%d\r\n",
+                    flow_freq_cfg.normal_work_freq, freq, freq_diff);
+            return;
+        } else if( freq_diff < 50 ) {
+            // 偏差过小，不更新
+            printf("freq drift too small: saved=%d, current=%d, diff=%d\r\n",
                     flow_freq_cfg.normal_work_freq, freq, freq_diff);
             return;
         }
@@ -901,11 +907,13 @@ void magic_cool_key_scan(uint8_t key1, uint8_t key2, uint8_t key3)
                 adjust_target_vol = voltage_levels[current_level_index];
             #endif
         #else
-            magic_cool_mode = 0;
+            close_all_output();
+            #if ENABLE_WRITE_FREQ
+                pending_write_freq_to_flash = true;  // 标志位延迟写入，避免在中断中执行 Flash 操作
+            #endif
         #endif
         }
     } else if (key2 == 0x02) {
-        magic_cool_mode = 0;
         close_all_output();
     #if ENABLE_WRITE_FREQ
         pending_write_freq_to_flash = true;  // 标志位延迟写入，避免在中断中执行 Flash 操作
@@ -1070,6 +1078,7 @@ int magic_cool_scan_power_profile(uint32_t start_freq, uint32_t stop_freq, uint3
 
     int ret = 0, index = 0;
     int freq = 0;
+    uint16_t vpp = 0;
 
     uint32_t delay_tick = get_systick();
 
@@ -1085,6 +1094,16 @@ int magic_cool_scan_power_profile(uint32_t start_freq, uint32_t stop_freq, uint3
             if( fault_vol_status == FAULT_NORMAL ) {
                 DELAY_MS_OR_RETURN(100, 1);
             }
+        }
+
+        vpp = (uint16_t)((magic_cool_vpp+voltage_offset)/voltage_gain);
+        if( vpp < target_vpp - 5 ) {
+            printf("[ERROR] freq: %d vpp: %d pwm1:%d\r\n", freq, vpp, pwm1_duty_out);
+            pwm1_duty_out = PWM1_MIN_POWER_DUTY;
+            // 恢复上一个正常工作的频率
+            pwm_set_freq(freq-step_freq);
+            magic_cool_voltage_closeloop(target_vpp, 2, 100, DISABLE);// 电压闭环
+            break;
         }
 
         freq_pwr[index] = pwm1_duty_out;
@@ -1235,7 +1254,7 @@ void magic_cool_run_impedance(void)
         len = magic_cool_scan_power_profile(magic_cool_freqstart, magic_cool_freqstop, step_freq);
         uint32_t val;
         if( find_extremum_minima_i(freq_pwr, len, (uint32_t *)&val, &idx_min) == -1 ) {
-            magic_cool_mode = 0;
+            close_all_output();
             printf("fault freq, stop work\r\n");
         }
         if( magic_cool_mode == 0 ) {
@@ -1260,7 +1279,7 @@ void magic_cool_run_impedance(void)
         printf("[sys:%d] min freq range:%d-%d, min val:%d\r\n", get_systick() - debug_tick, freq_start_found, freq_end_found, (int)val);
         debug_tick = get_systick();
 
-        magic_cool_freqstart = freq_start_found - 1400;
+        magic_cool_freqstart = freq_start_found - 1000;
         // magic_cool_freqstop = freq_end_found + 500;
         magic_cool_freqstop = freq_end_found;
         printf("[sys:%d] magic_cool_freqstart:%d, magic_cool_freqstop:%d\r\n", get_systick() - debug_tick, magic_cool_freqstart, magic_cool_freqstop);
@@ -1518,7 +1537,7 @@ static uint32_t get_freq_from_scan_index(uint32_t start_freq, uint16_t step, uin
 #if ENABLE_PER
     #define PWR_PROXTH      3  // 6
     #define PWR_PROXTH_MIN  2
-    #define PWR_PROXTH_MAX  15
+    #define PWR_PROXTH_MAX  10 //15
 #else
     #define PWR_PROXTH      ((int)POWER_PROXTH(30))
     #define PWR_PROXTH_MIN  ((int)POWER_PROXTH(15))
@@ -1544,8 +1563,6 @@ typedef struct {
     bool is_huge_stability_scan;
 
     // Stuck detection
-    uint8_t pwr0_stuck_cnt;
-    uint8_t pwr2_stuck_cnt;
     uint8_t pwr0_max_cnt;
     uint8_t pwr2_max_cnt;
 
@@ -1565,14 +1582,9 @@ typedef struct {
     uint8_t perturb_cnt;
 } TrackingState;
 
-static TrackingState track_state = {
-    .freq_step = FREQ_NORMAL_STEP,
-    .freq_range = FREQ_NORMAL_RANGE,
-    .pwr_proxth = PWR_PROXTH,
-    .perturb_step = 20,
-    .perturb_cnt = 3
-};
+static TrackingState track_state;
 
+// 初始化track_state
 static void track_reset_state(void)
 {
     track_state.freq_step = FREQ_NORMAL_STEP;
@@ -1592,57 +1604,6 @@ static void track_reset_state(void)
     track_state.long_time_same_freq_scan_pending = false;
 #endif
 }
-
-#if defined(ENABLE_HIGH_TEMP_SCAN) && (ENABLE_HIGH_TEMP_SCAN == 1)
-static void track_check_timers(void)
-{
-#if 0
-    // 1. 3分钟倒计时检查
-    if( (get_systick() >= track_state.countdown_xmin) && (track_state.countdown_xmin != 0) ) {
-        track_state.countdown_xmin = 0;
-        scan_freq_enable = true;
-        track_state.long_time_same_freq_tick = get_systick();
-        printf("scan enable:%d. countdown 3min\r\n", __LINE__);
-    }
-#endif
-
-    // 没有出现大功率波动则不触发长时间同频检查
-    if( !enable_high_temp_scan ) {
-        track_state.long_time_same_freq_tick = get_systick();
-        track_state.long_time_same_freq_interval = (10*60*1000);
-        track_state.long_time_same_freq_scan_pending = false;
-        return;
-    }
-
-    // 2. 长时间同频检查
-    if( track_state.last_freq == pwm_get_freq() ) {
-        if( track_state.long_time_same_freq_scan_pending ) {
-            if( track_state.long_time_same_freq_interval < (30*60*1000) ) {
-                track_state.long_time_same_freq_interval += (10*60*1000);
-                if( track_state.long_time_same_freq_interval > (30*60*1000) ) {
-                    track_state.long_time_same_freq_interval = (30*60*1000);
-                }
-            }
-            track_state.long_time_same_freq_scan_pending = false;
-        }
-
-        uint32_t elapsed = get_systick() - track_state.long_time_same_freq_tick;
-        if( elapsed >= track_state.long_time_same_freq_interval ) {
-            track_state.long_time_same_freq_tick = get_systick();
-            scan_freq_enable = true;
-            track_state.long_time_same_freq_scan_pending = true;
-            printf("scan enable:%d. long time same freq\r\n", __LINE__);
-        } else {
-            printf("same freq time:%d interval:%d \r\n", ((get_systick() - track_state.long_time_same_freq_tick)/1000), (track_state.long_time_same_freq_interval/1000));
-        }
-    } else {
-        track_state.last_freq = pwm_get_freq();
-        track_state.long_time_same_freq_tick = get_systick();
-        track_state.long_time_same_freq_interval = (10*60*1000);
-        track_state.long_time_same_freq_scan_pending = false;
-    }
-}
-#endif
 
 static void track_perform_scan(uint8_t n)
 {
@@ -1765,7 +1726,7 @@ static bool track_check_power_stability(uint8_t n)
             track_state.pwr_proxth_reset_cnt = 0;
             track_state.perturb_step = 20;
             track_state.perturb_cnt = 3;
-            scan_freq_enable = false;
+            // scan_freq_enable = false;
             printf("reset pwr proxth. perturb_step:%d is_huge_stability_scan:%d\r\n", track_state.perturb_step, track_state.is_huge_stability_scan);
         }
     } else {
@@ -1789,7 +1750,7 @@ static bool track_check_power_stability(uint8_t n)
             } else {
                 track_state.pwr_high_diff_cnt = 0;
             }
-            scan_freq_enable = true;
+            // scan_freq_enable = true;
             track_state.freq_step = FREQ_HIGH_TEMP_STEP;
             track_state.freq_range = FREQ_HIGH_TEMP_RANGE;
             track_state.pwr_proxth = PWR_PROXTH_MIN;
@@ -1801,7 +1762,7 @@ static bool track_check_power_stability(uint8_t n)
             track_state.perturb_step = 50;
             track_state.perturb_cnt = 0;
             track_state.normal_pwr_max = magic_cool_pwr_max;
-            printf("scan enable:%d. perturb_step:%d is_huge_stability_scan:%d normal_pwr_max:%d\r\n", __LINE__, track_state.perturb_step, track_state.is_huge_stability_scan, track_state.normal_pwr_max);
+            printf("perturb_step:%d is_huge_stability_scan:%d normal_pwr_max:%d\r\n", track_state.perturb_step, track_state.is_huge_stability_scan, track_state.normal_pwr_max);
             // return true; // 跳过P&O
         } else {
             track_state.pwr_high_diff_cnt = 0;
@@ -1821,8 +1782,6 @@ static bool track_check_power_stability(uint8_t n)
 
 static void track_perturb_observe(uint8_t n)
 {
-    track_state.pwr0_stuck_cnt = 0;
-    track_state.pwr2_stuck_cnt = 0;
     track_state.pwr0_max_cnt = 0;
     track_state.pwr2_max_cnt = 0;
 
@@ -1842,6 +1801,37 @@ static void track_perturb_observe(uint8_t n)
         printf("freq2: %d pwr2:%d vpp:%.2f dac:%.2f duty:%d\r\n", freq2, pwr2, (float)((magic_cool_vpp+voltage_offset)/voltage_gain), (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)), pwm_get_duty());
 
         if (magic_cool_mode == 0 || is_target_vol_change() ) return;
+
+    #if 1 //TODO:待定是否添加
+        // 代表电压过压,调档或高温恢复常温过程会出现
+        uint16_t step = 100;
+        while( !pwr0 && !pwr1 && !pwr2 )
+        {
+            freq2 = freq1 + step;
+            freq0 = freq1 - step;
+
+            pwr0 = measure_power_simple(freq0, n);
+            pwr2 = measure_power_simple(freq2, n);
+
+            printf("step:%d pwr0:%d pwr1:%d pwr2:%d\r\n", step, pwr0, pwr1, pwr2);
+            step += 50;
+
+            if( magic_cool_mode == 0 || stop_scan_freq )
+            {
+                return;
+            }
+
+            if( pwr0 > pwr2 ) {
+                pwm_set_freq(freq0);
+                magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 100, ENABLE);
+                return;
+            } else if( pwr2 > pwr0 ) {
+                pwm_set_freq(freq2);
+                magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 100, ENABLE);
+                return;
+            }
+        }
+    #endif
 
         #if ENABLE_PER
             int tmp = (magic_cool_pwr_max * track_state.pwr_proxth / 100 ) >> 1;
@@ -1884,33 +1874,6 @@ static void track_perturb_observe(uint8_t n)
             pwm_set_freq(freq1);
             track_state.pwr0_max_cnt = 0;
             track_state.pwr2_max_cnt = 0;
-
-            if( track_state.is_huge_stability_scan ) {
-                #if ENABLE_PER
-                    int tmp_stuck = (magic_cool_pwr_max * track_state.pwr_proxth / 100 ) >> 2;
-                #else
-                    int tmp_stuck = track_state.pwr_proxth >> 2;
-                #endif
-
-                if( (pwr0 > pwr1 + tmp_stuck && pwr0 > pwr2 + tmp_stuck) ) {
-                    track_state.pwr2_stuck_cnt = 0;
-                    track_state.pwr0_stuck_cnt++;
-                } else if ( (pwr2 > pwr1 + tmp_stuck && pwr2 > pwr0 + tmp_stuck) ) {
-                    track_state.pwr0_stuck_cnt = 0;
-                    track_state.pwr2_stuck_cnt++;
-                } else {
-                    track_state.pwr0_stuck_cnt = 0;
-                    track_state.pwr2_stuck_cnt = 0;
-                }
-
-                if (track_state.pwr0_stuck_cnt >= 3 || track_state.pwr2_stuck_cnt >= 3) {
-                    track_state.pwr0_stuck_cnt = 0;
-                    track_state.pwr2_stuck_cnt = 0;
-                    scan_freq_enable = true;
-                    printf("scan enable:%d. high temp stuck\r\n", __LINE__);
-                    // break;
-                }
-            }
         }
     }
 }
@@ -1923,10 +1886,6 @@ void magic_cool_freq_track_current(void)
     if( reset_pwr_proxth_flag ) {
         track_reset_state();
         reset_pwr_proxth_flag = false;
-    } else {
-    #if defined(ENABLE_HIGH_TEMP_SCAN) && (ENABLE_HIGH_TEMP_SCAN == 1)
-        track_check_timers();
-    #endif
     }
 
     // 循环直到不需要扫频
@@ -1936,7 +1895,8 @@ void magic_cool_freq_track_current(void)
 
     // 检查功率稳定性
     bool skip_po = track_check_power_stability(n);
-    if (skip_po) return;
+    //TODO: 调档失败直接进入P&O
+    if (skip_po && fault_vol_status!=FAULT_SETTING_FAILED) return;
 
     // 追频
     track_perturb_observe(n);
@@ -1976,9 +1936,6 @@ void magic_cool_vpp_change(void)
         // sys_delayms(10);
 
         //TODO: 切档可以在此再次优化
-    #if 0
-        uint32_t pwr = get_current_pwr(pwm_get_freq(), 5);
-    #else
         uint32_t pwr = 0;
         magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 100, ENABLE);// 电压闭环
 
@@ -1995,7 +1952,7 @@ void magic_cool_vpp_change(void)
             }
             pwr = pwr / 5;
         }
-    #endif
+
         if( pwr != 0 ) {
             magic_cool_pwr_max = pwr;
         }
@@ -2009,8 +1966,13 @@ void magic_cool_vpp_change(void)
         reset_water_intrusion_flag = true;
     #endif
     }
-    first_scan_freq = false;
+#elif ENABLE_WRITE_FREQ
+    if( first_scan_freq == true )
+    {
+        ignore_pwm_change_tick = get_systick() + 5000;
+    }
 #endif
+    first_scan_freq = false;
 }
 
 void magic_cool_freq_track(void)
@@ -2023,6 +1985,10 @@ void magic_cool_freq_track(void)
         tick_cur = get_systick() + feedback_tick;
         // scan_freq_enable = false;
     }
+#endif
+
+#if 0
+    maigc_cool_test_vpp();
 #endif
 }
 
@@ -2129,7 +2095,7 @@ void magic_cool_check_water_intrusion(uint32_t power)
 
         if(water_intrusion_cnt >= INTRUSION_DETECT_COUNT) {
             printf("[ALARM] Water intrusion CONFIRMED! Shutting down magic cool.\r\n");
-            magic_cool_mode = 0;
+            close_all_output();
         }
 
         // 关键点：检测到异常时，直接返回，绝对不要更新滤波器！
@@ -2168,6 +2134,37 @@ void magic_cool_check_water_intrusion(uint32_t power)
 }
 #endif
 
+void maigc_cool_test_vpp(void)
+{
+    static uint16_t cnt;
+
+    if( get_systick() < 3*60*1000 || cnt >= 1001 ) {
+        return;
+    }
+
+    // sys_delayms(1000);
+    for(; cnt<1000; cnt++) {
+        adc_output_conv(ADC_CH_SIZE);
+        printf("%.2f,", find_peak_to_peak(adc_voltage_data, (uint32_t)ADC_CH_SIZE));
+    }
+    if( cnt == 1000 ) {
+        printf("\r\n");
+        // adc_hvli_input_conv(ADC_CH_SIZE);
+        for(int i = 0; i < ADC_CH_SIZE; i++) {
+            printf("%.2f \r\n", adc_voltage_data[i]);
+        }
+        printf("---------\r\n");
+        for(int i = 0; i < ADC_CH_SIZE; i++) {
+            printf("%.2f \r\n", adc_current_data[i]);
+        }
+        // for(int i = 0; i < ADC_CH_SIZE; i++) {
+        //     printf("%.2f, %.2f\r\n", adc_voltage_data[i], adc_current_data[i]);
+        // }
+        sys_delayms(100);
+        cnt = 1001;
+        close_all_output();
+    }
+}
 
 void magic_cool_config(void)
 {
@@ -2206,26 +2203,22 @@ void magic_cool_config(void)
 
 void magic_cool_idle(void)
 {
-    #if 0
-        maigc_cool_test_vpp();
-    #else
-        static uint32_t next_calibration_tick = 0;
+    static uint32_t next_calibration_tick = 0;
 
-        pwm_enable(DISABLE);
-        pwm1_duty_out = PWM1_MIN_POWER_DUTY;
-        pwm1_set_duty(pwm1_duty_out);  // 设置DAC输出DCDC
-        set_power_enable(ENABLE);
-        OPA_Disable();
-        dcdc_power_control(DISABLE);
+    pwm_enable(DISABLE);
+    pwm1_duty_out = PWM1_MIN_POWER_DUTY;
+    pwm1_set_duty(pwm1_duty_out);  // 设置DAC输出DCDC
+    set_power_enable(ENABLE);
+    OPA_Disable();
+    dcdc_power_control(DISABLE);
 
-        // // 每3秒执行一次零点校准
-        // if (get_systick() >= next_calibration_tick) {
-        //     #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
-        //         adc_hvli_input_conv(ADC_CH_SIZE);
-        //     #endif
-        //     next_calibration_tick = get_systick() + 3000; // 设置下一次校准时间
-        // }
-    #endif
+    // // 每3秒执行一次零点校准
+    // if (get_systick() >= next_calibration_tick) {
+    //     #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
+    //         adc_hvli_input_conv(ADC_CH_SIZE);
+    //     #endif
+    //     next_calibration_tick = get_systick() + 3000; // 设置下一次校准时间
+    // }
 }
 
 void magic_cool_run(void)
