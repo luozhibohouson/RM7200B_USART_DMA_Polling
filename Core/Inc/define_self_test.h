@@ -20,11 +20,11 @@
 // =================== 功能开关 ===================
 #define     ENABLE_PER             1  // 百分比阈值设定 or 固定阈值设定
 #define     ENABLE_WATER_INTRUSION 0  // 进水检测开关
-#define     ENABLE_KEY_VOL_CFG     1  // 按键调整电压
+#define     ENABLE_KEY_VOL_CFG     0  // 按键调整电压
 #define     ENABLE_HIGH_TEMP_SCAN  0  // 高温定时扫频开关
 #define     ENABLE_WRITE_FREQ      0  // 写频开关
-#define     ENABLE_QUERY_CMD       0 // 查询指令开关，需要开启串口通讯才能使用 -- 仅在内部测试时使用，客户版本禁止开启该宏
-#define     ENABLE_PUMP_STATUS_CMD 0 // 气泵状态查询开关
+#define     ENABLE_QUERY_CMD       0  // 查询指令开关，需要开启串口通讯才能使用 -- 仅在内部测试时使用，客户版本禁止开启该宏
+#define     ENABLE_PUMP_STATUS_CMD 0  // 气泵状态查询开关
 // ================================================
 
 // =================== 气泵频率设定 ===================

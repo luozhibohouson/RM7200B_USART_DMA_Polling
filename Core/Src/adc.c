@@ -249,8 +249,11 @@ void adc_voltage_get_vpp(int num)
     // 中心对称
     for (i = 0; i < num; i++) {
         adc_voltage_data[i] = (float)adc_data[i * 2] - adc_vol_avg;
-//        printf("%.5f, %.5f, %d, %d\r\n", adc_voltage_data[i], adc_current_data[i], adc_data[i * 2], adc_data[i * 2 + 1]);
+        // printf("%.5f, %.5f, %d, %d\r\n", adc_voltage_data[i], adc_current_data[i], adc_data[i * 2], adc_data[i * 2 + 1]);
     }
+
+    // 3点中值滤波，去除毛刺
+    median_filter_3(adc_voltage_data, num);
 
 #if  MAGIC_COOL_VPP_DEFAULT == MAGIC_COOL_VPP_MAXMIN
     adc_vpp = find_peak_to_peak(adc_voltage_data, num);
@@ -349,6 +352,9 @@ void adc_output_conv(int num)  // 输出交流电压电流
         adc_current_data[i] = (float)adc_data[i * 2 + 1] - adc_cur_avg;
 //        printf("%.5f, %.5f, %d, %d\r\n", adc_voltage_data[i], adc_current_data[i], adc_data[i * 2], adc_data[i * 2 + 1]);
     }
+
+    // 3点中值滤波，去除毛刺
+    median_filter_3(adc_voltage_data, num);
 #endif
 
 #if  MAGIC_COOL_VPP_DEFAULT == MAGIC_COOL_VPP_MAXMIN

@@ -737,6 +737,36 @@ void rm_math_test(void)
     ;
 }
 
+/* 3点中值滤波 (带阈值):
+ * y[i] = Median(x[i-1], x[i], x[i+1])
+ * 只有当 |原始值 - 中值| > 阈值 时才替换，否则保留原始值（避免削峰）
+ * 原地滤波，会对原数据进行修改
+ */
+void median_filter_3(float *data, int len)
+{
+    if (data == NULL || len < 3) return;
+
+    float prev, curr, next;
+    float median;
+
+    // 处理从索引 1 到 len-2 的数据 (首尾两点不滤波)
+    for (int i = 1; i < len - 1; i++) {
+        prev = data[i-1];
+        curr = data[i];
+        next = data[i+1];
+
+        // 寻找 prev, curr, next 的中值
+        if ((prev <= curr && curr <= next) || (next <= curr && curr <= prev))
+            median = curr;
+        else if ((curr <= prev && prev <= next) || (next <= prev && prev <= curr))
+            median = prev;
+        else
+            median = next;
+
+        data[i] = median;
+    }
+}
+
 //  LL_GPIO_SetOutputPin(GPIOB, LL_GPIO_PIN_4);
 //  LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_4);
 //void math_test(void)

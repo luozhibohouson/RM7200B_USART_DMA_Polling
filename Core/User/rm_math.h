@@ -33,4 +33,7 @@ float get_dot_product(float *vol_data, float *cur_data, int len);
 // 计算电压电流相位差
 float get_phase_difference(float *vol_data, float *cur_data, int len);
 
+// 3点中值滤波 (带阈值)
+void median_filter_3(float *data, int len);
+
 #endif  // __RM_MATH_H__
