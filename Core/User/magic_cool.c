@@ -97,9 +97,6 @@ volatile bool led_always_on = 0;
 #endif
 bool first_scan_freq = false;
 bool reset_pwr_proxth_flag = false;
-#if defined(ENABLE_HIGH_TEMP_SCAN) && (ENABLE_HIGH_TEMP_SCAN == 1)
-bool enable_high_temp_scan = false;
-#endif
 #if ENABLE_WATER_INTRUSION
 bool reset_water_intrusion_flag = false;
 #endif
@@ -693,14 +690,6 @@ void write_final_freq_to_flash(void)
         printf("first scan not complete, skip write\r\n");
         return;
     }
-
-#if defined(ENABLE_HIGH_TEMP_SCAN) && (ENABLE_HIGH_TEMP_SCAN == 1)
-    // ============ 验证2：高温环境检查 ============（新增）
-    if (enable_high_temp_scan) {
-        printf("high temp detected, skip write\r\n");
-        return;
-    }
-#endif
 
     uint32_t freq = pwm_get_freq();
 
@@ -1350,10 +1339,6 @@ void magic_cool_run_impedance(void)
     flow_freq_cfg_write(magic_cool_runfreq, freq_min, freq_max);
 #endif
 
-#if defined(ENABLE_HIGH_TEMP_SCAN) && (ENABLE_HIGH_TEMP_SCAN == 1)
-    enable_high_temp_scan = false;
-#endif
-
     reset_pwr_proxth_flag = true;
     reset_time_flag = true;
 #if ENABLE_WATER_INTRUSION
@@ -1557,15 +1542,6 @@ typedef struct {
     uint8_t pwr0_max_cnt;
     uint8_t pwr2_max_cnt;
 
-#if defined(ENABLE_HIGH_TEMP_SCAN) && (ENABLE_HIGH_TEMP_SCAN == 1)
-    // Timer state
-    int last_freq;
-    uint32_t countdown_xmin;
-    uint32_t long_time_same_freq_tick;
-    uint32_t long_time_same_freq_interval;
-    bool long_time_same_freq_scan_pending;
-#endif
-
     // status
     uint32_t normal_pwr_max;
 
@@ -1588,13 +1564,6 @@ static void track_reset_state(void)
     track_state.perturb_step = 20;
     track_state.perturb_cnt = 3;
     track_state.normal_pwr_max = magic_cool_pwr_max;
-
-#if defined(ENABLE_HIGH_TEMP_SCAN) && (ENABLE_HIGH_TEMP_SCAN == 1)
-    track_state.countdown_xmin = get_systick() + (3*60*1000); // 3分钟
-    track_state.long_time_same_freq_tick = get_systick();
-    track_state.long_time_same_freq_interval = (10*60*1000);
-    track_state.long_time_same_freq_scan_pending = false;
-#endif
 }
 
 //TODO: 可改成若功率变化过大，则增大P&O步长，恢复后则按正常步长P&O
@@ -1696,9 +1665,6 @@ static bool track_check_power_stability(uint8_t n)
             track_state.freq_range = FREQ_HIGH_TEMP_RANGE;
             track_state.pwr_proxth = PWR_PROXTH_MIN;
             track_state.is_huge_stability_scan = true;
-        #if defined(ENABLE_HIGH_TEMP_SCAN) && (ENABLE_HIGH_TEMP_SCAN == 1)
-            enable_high_temp_scan = true;
-        #endif
             track_state.perturb_step = 50;
             track_state.perturb_cnt = 0;
             track_state.normal_pwr_max = magic_cool_pwr_max;

@@ -434,8 +434,6 @@ static void handle_pump_status_cmd(uint8_t *data, uint16_t data_len)
 #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
     extern float adc_dc_hcur_avg;
 #endif
-    extern bool scan_freq_enable;
-
     // 1. 获取气泵频率 (Hz)
     uint32_t freq = pwm_get_freq();
 
@@ -473,7 +471,7 @@ static void handle_pump_status_cmd(uint8_t *data, uint16_t data_len)
     response_data[8] = (pwr_x100 >> 8) & 0xFF;   // PWR*100 LH_8bit
     response_data[9] = pwr_x100 & 0xFF;          // PWR*100 LL_8bit
     response_data[10] = percent_pwr;             // 功率变化百分比
-    response_data[11] = scan_freq_enable;        // 扫频使能标志
+    response_data[11] = 0;        // 扫频使能标志
 
     // 发送响应
     usart_send_frame(CMD_PUMP_STATUS, response_data, sizeof(response_data));
