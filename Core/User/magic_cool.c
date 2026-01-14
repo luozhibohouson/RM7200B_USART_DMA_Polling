@@ -1596,6 +1596,7 @@ static void track_reset_state(void)
     track_state.pwr_proxth = PWR_PROXTH;
     feedback_tick = 1000;
     track_state.pwr_proxth_reset_cnt = 0;
+    track_state.is_huge_stability_scan = false;
 
     track_state.perturb_step = 20;
     track_state.perturb_cnt = 3;
@@ -1841,7 +1842,7 @@ static void track_perturb_observe(uint8_t n)
     #endif
 
         #if ENABLE_PER
-            int tmp = (magic_cool_pwr_max * track_state.pwr_proxth / 100 ) >> 1;
+            int tmp = (magic_cool_pwr_max * track_state.pwr_proxth / 100 ) >> 2;
         #else
             int tmp = track_state.pwr_proxth >> 1;
         #endif
