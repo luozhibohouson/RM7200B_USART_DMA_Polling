@@ -1743,21 +1743,33 @@ static bool track_check_power_stability(uint8_t n)
 
     if (is_stable) {
         track_state.pwr_diff_cnt = 0; // 重置P&O计数器
+        track_state.pwr_high_diff_cnt = 0;
         return true; // 功率正常（误差在阈值内），无需调整
-    } else {
-        #if ENABLE_PER
-            bool huge_stability = (percent >= PWR_PROXTH_MAX);
-        #else
-            bool huge_stability = (diff >= PWR_PROXTH_MAX);
-        #endif
+    }
 
-        if (huge_stability && track_state.is_huge_stability_scan == false) {
-            if( track_state.pwr_high_diff_cnt < 2 ) {
-                track_state.pwr_high_diff_cnt++;
-                return true; // 跳过P&O
-            } else {
-                track_state.pwr_high_diff_cnt = 0;
-            }
+    // 只要不稳定，普通计数器始终累加
+    track_state.pwr_diff_cnt++;
+
+    #if ENABLE_PER
+        bool huge_stability = (percent >= PWR_PROXTH_MAX);
+    #else
+        bool huge_stability = (diff >= PWR_PROXTH_MAX);
+    #endif
+
+    bool trigger_huge_scan = false;
+
+    if (huge_stability && track_state.is_huge_stability_scan == false) {
+        track_state.pwr_high_diff_cnt++;
+        if( track_state.pwr_high_diff_cnt >= 2 ) {
+            trigger_huge_scan = true;
+        }
+    } else {
+        track_state.pwr_high_diff_cnt = 0;
+    }
+
+    if (trigger_huge_scan) {
+            track_state.pwr_diff_cnt = 0;
+            track_state.pwr_high_diff_cnt = 0;
             // scan_freq_enable = true;
             track_state.freq_step = FREQ_HIGH_TEMP_STEP;
             track_state.freq_range = FREQ_HIGH_TEMP_RANGE;
@@ -1772,10 +1784,7 @@ static bool track_check_power_stability(uint8_t n)
             track_state.normal_pwr_max = magic_cool_pwr_max;
             printf("perturb_step:%d is_huge_stability_scan:%d normal_pwr_max:%d\r\n", track_state.perturb_step, track_state.is_huge_stability_scan, track_state.normal_pwr_max);
             // return true; // 跳过P&O
-        } else {
-            track_state.pwr_high_diff_cnt = 0;
-
-            track_state.pwr_diff_cnt++;
+    } else {
             //需要连续N次PWM检测超过阈值，才进行P&O，否则跳过
             if( track_state.pwr_diff_cnt >= track_state.perturb_cnt ) {
                 track_state.pwr_diff_cnt = 0;
@@ -1783,7 +1792,6 @@ static bool track_check_power_stability(uint8_t n)
                 printf("pwr_diff_cnt: %d\r\n", track_state.pwr_diff_cnt);
                 return true; // 跳过P&O
             }
-        }
     }
     return false; // 进入P&O
 }
@@ -1863,7 +1871,7 @@ static void track_perturb_observe(uint8_t n)
             pwm_set_freq(freq1);
             printf("set freq1:%d \r\n", freq1);
             magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 100, ENABLE);
-            if( pwr1 > magic_cool_pwr_max )
+            // if( pwr1 > magic_cool_pwr_max )
                 magic_cool_pwr_max = pwr1;
             // break;
         } else if ((pwr2 > pwr0 + tmp) && (pwr2 > pwr1 + tmp)) {
