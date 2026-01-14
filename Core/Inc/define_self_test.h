@@ -41,11 +41,10 @@
 #if MCU_VDD == MCU_VDD_3V3
   #define MCU_VDD_GAIN             3.3
   #define MCU_VDD_GAIN_10X         33
+  #define MCU_VDD_MAX_GAIN_10X     33
 #if 0
-  #define MCU_VDD_MAX_GAIN_10X     30
   #define MCU_VDD_MIN_GAIN_10X     0
 #else // 未修改DC升压反馈电阻,最小只能到0.2V
-  #define MCU_VDD_MAX_GAIN_10X     33
   #define MCU_VDD_MIN_GAIN_10X     2
 #endif
 #elif MCU_VDD == MCU_VDD_3V0
