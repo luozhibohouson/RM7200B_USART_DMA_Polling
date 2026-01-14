@@ -19,7 +19,7 @@
 #define CMD_PUMP_STATUS_DATA_LEN    0    // 气泵状态查询指令数据长度
 #define CMD_SYSTEM_UPGRADE_DATA_LEN 4    // 系统升级指令数据长度：文件大小(2) + 校验和(2)
 #define CMD_PACKET_NUM_SIZE         2    // 包序号大小
-#define CMD_RESPONSE_MAX_DATA_LEN   12    // 响应数据最大长度
+#define CMD_RESPONSE_MAX_DATA_LEN   13    // 响应数据最大长度
 
 /* 固件标志 */
 #define APP_VALID_FLAG              0xAA55

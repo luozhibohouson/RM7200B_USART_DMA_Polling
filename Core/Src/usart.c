@@ -415,7 +415,7 @@ static void handle_deep_sleep_cmd(uint8_t *data, uint16_t data_len)
 #if ENABLE_PUMP_STATUS_CMD
 static void handle_pump_status_cmd(uint8_t *data, uint16_t data_len)
 {
-    uint8_t response_data[11] = {0};
+    uint8_t response_data[12] = {0};
 
     // 验证数据长度
     if (data_len != CMD_PUMP_STATUS_DATA_LEN) {
@@ -458,6 +458,9 @@ static void handle_pump_status_cmd(uint8_t *data, uint16_t data_len)
 #endif
     uint32_t pwr_x100 = (uint32_t)(pwr_mw * 100.0f);
 
+    extern uint8_t percent_pwr;
+    uint8_t percent = 0;
+
     // 填充响应数据 (大端序)
     response_data[0] = (freq >> 8) & 0xFF;       // 气泵频率高8位
     response_data[1] = freq & 0xFF;              // 气泵频率低8位
@@ -469,7 +472,8 @@ static void handle_pump_status_cmd(uint8_t *data, uint16_t data_len)
     response_data[7] = (pwr_x100 >> 16) & 0xFF;  // PWR*100 HL_8bit
     response_data[8] = (pwr_x100 >> 8) & 0xFF;   // PWR*100 LH_8bit
     response_data[9] = pwr_x100 & 0xFF;          // PWR*100 LL_8bit
-    response_data[10] = scan_freq_enable;        // 扫频使能标志
+    response_data[10] = percent_pwr;             // 功率变化百分比
+    response_data[11] = scan_freq_enable;        // 扫频使能标志
 
     // 发送响应
     usart_send_frame(CMD_PUMP_STATUS, response_data, sizeof(response_data));

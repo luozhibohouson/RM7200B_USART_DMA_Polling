@@ -78,6 +78,10 @@ _flow_freq_cfg_t flow_freq_cfg;
 static volatile bool pending_write_freq_to_flash = false;
 #endif
 
+#if ENABLE_PUMP_STATUS_CMD
+uint8_t percent_pwr = 0;
+#endif
+
 bool stop_scan_freq = false;
 
 bool stop_delay_ms = false;
@@ -1708,6 +1712,9 @@ static bool track_check_power_stability(uint8_t n)
         uint8_t percent = (uint8_t)(diff*100/magic_cool_pwr_max);
         printf("absx: %d percent: %d\r\n", diff, percent);
         bool is_stable = (percent < track_state.pwr_proxth);
+        #if ENABLE_PUMP_STATUS_CMD
+            percent_pwr = percent;
+        #endif
     #else
         printf("absx: %d diff:%.2f\r\n", diff, (float)(diff*(CURRENT_COEFFICIENT * VOL_H_COEFFICIENT)));
         bool is_stable = (diff < track_state.pwr_proxth);
