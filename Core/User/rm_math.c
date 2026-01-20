@@ -575,6 +575,10 @@ int find_extremum_minima_i(uint32_t *val, uint32_t len, uint32_t *val_minima, in
     int best_idx = -1;
     uint32_t best_value = 0;
 
+    if (val == NULL || len < 3) {
+        return -1;
+    }
+
     // 寻找所有V型谷底数据且值最小的谷底
     for (size_t i = 1; i < len - 1; i++) {
         if (val[i-1] > val[i] && val[i] <= val[i+1]) {
