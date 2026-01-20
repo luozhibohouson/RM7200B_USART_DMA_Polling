@@ -1,35 +1,34 @@
-#ifndef __DEFINE_SELF_TEST_11X11_H
-#define __DEFINE_SELF_TEST_11X11_H
+#ifndef __DEFINE_GLUE_TEST_H
+#define __DEFINE_GLUE_TEST_H
 
 #include "define.h"
 
-#if Magic_Cool_Customer == Self_Test_11x11
+#if Magic_Cool_Customer == Glue_Test
 
 // =================== 电压设定 ===================
-#define     VOL_TARGET      50 // 72  // 流量目标
-// #define     VOL_TARGET_90P  47 // 67
-#define     VOL_TARGET_80P  45 // 63
-// #define     VOL_TARGET_70P  43 // 59
-#define     VOL_TARGET_60P  40 // 55
-// #define     VOL_TARGET_50P  37 // 49
+#define     VOL_TARGET      40 // 50 //40  // 流量目标
+#define     VOL_TARGET_90P  37 // 47 //37
+#define     VOL_TARGET_80P  34 // 45 //34
+#define     VOL_TARGET_70P  31 // 43 //31
+#define     VOL_TARGET_60P  28 // 40 //28
+#define     VOL_TARGET_50P  25 // 37 //25
 
 // 最大电压，超过停止输出
-#define     VOL_TARGET_MAX  (VOL_TARGET+30)
+#define     VOL_TARGET_MAX    (VOL_TARGET+30)
 // ================================================
 
 // =================== 功能开关 ===================
 #define     ENABLE_PER             1  // 百分比阈值设定 or 固定阈值设定
 #define     ENABLE_WATER_INTRUSION 0  // 进水检测开关
-#define     ENABLE_KEY_VOL_CFG     1  // 按键调整电压
-#define     ENABLE_WRITE_FREQ      1  // 写频开关
+#define     ENABLE_KEY_VOL_CFG     0  // 按键调整电压
+#define     ENABLE_WRITE_FREQ      0  // 写频开关
 #define     ENABLE_QUERY_CMD       0  // 查询指令开关，需要开启串口通讯才能使用 -- 仅在内部测试时使用，客户版本禁止开启该宏
 #define     ENABLE_PUMP_STATUS_CMD 0  // 气泵状态查询开关
 // ================================================
 
 // =================== 气泵频率设定 ===================
-//NOTE: 11*11的气泵范围只能设到20KHz~26KHz
-#define FREQ_MIN                   20000
-#define FREQ_MAX                   28000
+#define FREQ_MIN                   20000 // 25500
+#define FREQ_MAX                   28000 // 27500
 // ================================================
 
 // =================== 驱动方式设定 ===================
@@ -86,7 +85,7 @@
 // =================== 电流计算参数设定 ===================
 #define CURRENT_ADC_MAX_TEST        137 //10mA -- 过流测试使用
 #define CURRENT_ADC_MAX             (4000 - adc_dc_lcur_offset) // (2 * 4096 * 11 / MCU_VDD_GAIN_10X) //0.2A * 4096 * 11 / 3.3 = 2730
-#define CURRENT_ADC_MIN             15 // 15 //DISABLE 为0则关闭空载检测
+#define CURRENT_ADC_MIN             DISABLE // 15 //DISABLE 为0则关闭空载检测
 // ================================================
 
 // =================== 功率计算参数设定 ===================
