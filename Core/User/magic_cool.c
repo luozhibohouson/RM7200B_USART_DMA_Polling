@@ -769,6 +769,19 @@ static void dcdc_power_control(uint8_t enable)
 #if ENABLE_KEY_VOL_CFG
 void magic_cool_led_control(uint32_t tick)
 {
+    static uint32_t led_start_tick = 0;
+    static uint32_t last_adjust_target_vol = 0;
+    static bool led_tick_inited = false;
+
+    if (!led_tick_inited) {
+        led_tick_inited = true;
+        last_adjust_target_vol = adjust_target_vol;
+        led_start_tick = tick;
+    } else if (last_adjust_target_vol != adjust_target_vol) {
+        last_adjust_target_vol = adjust_target_vol;
+        led_start_tick = tick;
+    }
+
     if( magic_cool_mode == 0 ) {
         GPIO_WriteBit(GPIOB, GPIO_Pin_5, Bit_RESET);
         return;
@@ -821,7 +834,7 @@ void magic_cool_led_control(uint32_t tick)
     const uint32_t group_ms = (uint32_t)flash_count * single_blink_ms;
     const uint32_t period_ms = group_ms + gap_ms;
 
-    uint32_t time_in_period = tick % period_ms;
+    uint32_t time_in_period = (tick - led_start_tick) % period_ms;
 
     if( time_in_period < group_ms ) {
         // 处于闪烁组内
@@ -1144,7 +1157,7 @@ int magic_cool_calc_impedance(uint32_t start_freq, uint32_t stop_freq, uint32_t 
         } else {
             freq_pwr[index] = 0;
         }
-        printf("[sys:%d] freq: %d vpp:%.1f duty:%d hvol: %.2f lcur: %.2f pwr: %d dac: %.2f \r\n", get_systick() - debug_tick, freq, (float)(magic_cool_vpp+voltage_offset)/voltage_gain, pwm_get_duty(), adc_dc_hvol_avg, adc_dc_lcur_avg, freq_pwr[index], (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)));
+        printf("[sys:%d] freq: %d vpp:%.1f hvol: %.2f lcur: %.2f pwr: %d dac: %.2f \r\n", get_systick() - debug_tick, freq, (float)(magic_cool_vpp+voltage_offset)/voltage_gain, adc_dc_hvol_avg, adc_dc_lcur_avg, freq_pwr[index], (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)));
         debug_tick = get_systick();
 #endif
 
@@ -1584,9 +1597,9 @@ static bool track_check_power_stability(uint8_t n)
     pwrx /= n;
     // printf("freq: %d pwr:%d\r\n", pwm_get_freq(), pwrx);
 
-    printf("freq:%d, vpp:%0.2f, duty:%ld, hvol: %d lcur: %d power:%.2f dac:%.2f pwr:%d\r\n", pwm_get_freq(), \
+    printf("freq:%d, vpp:%0.2f, hvol: %d lcur: %d power:%.2f dac:%.2f pwr:%d\r\n", pwm_get_freq(), \
     (float)((magic_cool_vpp+voltage_offset)/voltage_gain), \
-    pwm_get_duty(), sample.voltage, sample.current, \
+    sample.voltage, sample.current, \
     (float)POWER_CAL(sample.voltage, sample.current), \
     (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)), \
     pwrx);
@@ -1659,25 +1672,25 @@ static bool track_check_power_stability(uint8_t n)
     }
 
     if (trigger_huge_scan) {
-            track_state.pwr_diff_cnt = 0;
-            track_state.pwr_high_diff_cnt = 0;
-            track_state.freq_step = FREQ_HIGH_TEMP_STEP;
-            track_state.freq_range = FREQ_HIGH_TEMP_RANGE;
-            track_state.pwr_proxth = PWR_PROXTH_MIN;
-            track_state.is_huge_stability_scan = true;
-            track_state.perturb_step = 50;
-            track_state.perturb_cnt = 0;
-            track_state.normal_pwr_max = magic_cool_pwr_max;
-            printf("perturb_step:%d is_huge_stability_scan:%d normal_pwr_max:%d\r\n", track_state.perturb_step, track_state.is_huge_stability_scan, track_state.normal_pwr_max);
-            // return true; // 跳过P&O
+        track_state.pwr_diff_cnt = 0;
+        track_state.pwr_high_diff_cnt = 0;
+        track_state.freq_step = FREQ_HIGH_TEMP_STEP;
+        track_state.freq_range = FREQ_HIGH_TEMP_RANGE;
+        track_state.pwr_proxth = PWR_PROXTH_MIN;
+        track_state.is_huge_stability_scan = true;
+        track_state.perturb_step = 50;
+        track_state.perturb_cnt = 0;
+        track_state.normal_pwr_max = magic_cool_pwr_max;
+        printf("perturb_step:%d is_huge_stability_scan:%d normal_pwr_max:%d\r\n", track_state.perturb_step, track_state.is_huge_stability_scan, track_state.normal_pwr_max);
+        // return true; // 跳过P&O
     } else {
-            //需要连续N次PWM检测超过阈值，才进行P&O，否则跳过
-            if( track_state.pwr_diff_cnt >= track_state.perturb_cnt ) {
-                track_state.pwr_diff_cnt = 0;
-            } else {
-                printf("pwr_diff_cnt: %d\r\n", track_state.pwr_diff_cnt);
-                return true; // 跳过P&O
-            }
+        //需要连续N次PWM检测超过阈值，才进行P&O，否则跳过
+        if( track_state.pwr_diff_cnt >= track_state.perturb_cnt ) {
+            track_state.pwr_diff_cnt = 0;
+        } else {
+            // printf("pwr_diff_cnt: %d\r\n", track_state.pwr_diff_cnt);
+            return true; // 跳过P&O
+        }
     }
     return false; // 进入P&O
 }
@@ -1694,13 +1707,13 @@ static void track_perturb_observe(uint8_t n)
         int freq0 = freq1 - track_state.perturb_step;
 
         uint32_t pwr1 = measure_power_simple(freq1, n);
-        printf("freq1: %d pwr1:%d vpp:%.2f dac:%.2f duty:%d\r\n", freq1, pwr1, (float)((magic_cool_vpp+voltage_offset)/voltage_gain), (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)), pwm_get_duty());
+        printf("freq1: %d pwr1:%d vpp:%.2f dac:%.2f\r\n", freq1, pwr1, (float)((magic_cool_vpp+voltage_offset)/voltage_gain), (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)));
 
         uint32_t pwr0 = measure_power_simple(freq0, n);
-        printf("freq0: %d pwr0:%d vpp:%.2f dac:%.2f duty:%d\r\n", freq0, pwr0, (float)((magic_cool_vpp+voltage_offset)/voltage_gain), (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)), pwm_get_duty());
+        printf("freq0: %d pwr0:%d vpp:%.2f dac:%.2f\r\n", freq0, pwr0, (float)((magic_cool_vpp+voltage_offset)/voltage_gain), (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)));
 
         uint32_t pwr2 = measure_power_simple(freq2, n);
-        printf("freq2: %d pwr2:%d vpp:%.2f dac:%.2f duty:%d\r\n", freq2, pwr2, (float)((magic_cool_vpp+voltage_offset)/voltage_gain), (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)), pwm_get_duty());
+        printf("freq2: %d pwr2:%d vpp:%.2f dac:%.2f\r\n", freq2, pwr2, (float)((magic_cool_vpp+voltage_offset)/voltage_gain), (float)(pwm1_duty_out*MCU_VDD_GAIN/(HSI_VALUE/PWM1_FREQ)));
 
         if (magic_cool_mode == 0 || is_target_vol_change() ) return;
 
