@@ -318,7 +318,7 @@ static void is_over_voltage(uint16_t vpp, FunctionalState over_voltage_check_ena
 {
     protocol_fault_t ret = FAULT_NORMAL;
 
-    if( magic_cool_mode == 0 || stop_scan_freq ) {
+    if( magic_cool_mode == 0 || stop_scan_freq || over_voltage_check_enable == DISABLE ) {
         return;
     }
 
@@ -328,11 +328,9 @@ static void is_over_voltage(uint16_t vpp, FunctionalState over_voltage_check_ena
     // 若追频时，电压超过最大电压，则认为过压停止运行
     if( vol >= VOL_TARGET_MAX ) {
         // 扫频时，过压不关输出
-        if( over_voltage_check_enable == ENABLE ) {
-            close_all_output();
-            // 需要报过压故障
-            ret = FAULT_OVER_VOLTAGE;
-        }
+        close_all_output();
+        // 需要报过压故障
+        ret = FAULT_OVER_VOLTAGE;
     }
     // 认为是调档失败
 #if ENABLE_KEY_VOL_CFG || defined(ENABLE_USART)
@@ -1014,9 +1012,7 @@ int magic_cool_voltage_closeloop_dcdc(uint32_t vol_target, uint32_t vol_err, uin
 int magic_cool_voltage_closeloop(uint32_t vol_target, uint32_t vol_err, uint32_t timeout, FunctionalState over_voltage_check_enable)
 {
     magic_cool_voltage_closeloop_dcdc(vol_target, vol_err, timeout);
-    if( over_voltage_check_enable ) {
-        is_over_voltage(magic_cool_vpp, over_voltage_check_enable);
-    }
+    is_over_voltage(magic_cool_vpp, over_voltage_check_enable);
 #if ENABLE_QUERY_CMD
     float vpp = ((magic_cool_vpp+voltage_offset)/voltage_gain) * 1000;
     if( max_vol_cur_data.vol < vpp ) {
