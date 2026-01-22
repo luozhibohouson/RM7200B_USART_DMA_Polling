@@ -5,13 +5,6 @@
 
 #if Magic_Cool_Customer == SongYang
 
-#if defined(ENABLE_USART)
-#error "ENABLE_USART mode is not supported for SongYang"
-#endif
-
-#undef printf
-#define printf(fmt, ...) ((void)0)
-
 // =================== 电压设定 ===================
 #define     VOL_TARGET      40 // 50 //40  // 流量目标
 #define     VOL_TARGET_90P  34 // 47 //37
@@ -27,7 +20,7 @@
 // =================== 功能开关 ===================
 #define     ENABLE_PER             1  // 百分比阈值设定 or 固定阈值设定
 #define     ENABLE_WATER_INTRUSION 0  // 进水检测开关
-#define     ENABLE_KEY_VOL_CFG     1  // 按键调整电压
+#define     ENABLE_KEY_VOL_CFG     0  // 按键调整电压
 #define     ENABLE_WRITE_FREQ      1  // 写频开关
 #define     ENABLE_QUERY_CMD       0  // 查询指令开关，需要开启串口通讯才能使用 -- 仅在内部测试时使用，客户版本禁止开启该宏
 #define     ENABLE_PUMP_STATUS_CMD 0  // 气泵状态查询开关

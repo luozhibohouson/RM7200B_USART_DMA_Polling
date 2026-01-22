@@ -42,12 +42,11 @@
 #include "define_self_test_11x11.h"
 #include "define_self_test_12x12.h"
 #include "define_glue_test.h"
+#include "define_sy.h"
 
 // printf 空操作屏蔽保持全局一致性
-#if (!defined(ENABLE_PRINTF)) || (defined(ENABLE_USART))
+#if (!defined(ENABLE_PRINTF)) || (defined(ENABLE_USART)) || (Magic_Cool_Customer == SongYang)
 #define printf(fmt, ...) ((void)0)
 #endif
-
-#include "define_sy.h"
 
 #endif
