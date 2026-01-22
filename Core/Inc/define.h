@@ -26,6 +26,8 @@
 #define Self_Test_zhongrui  6   //中睿陶瓷测试
 #define Self_Test_11x11     7   //11*11气泵测试
 #define Self_Test_12x12     8   //12*12气泵测试
+#define Glue_Test           9   //胶水测试
+#define SongYang            10  //送样
 
 #define Magic_Cool_Customer  Self_Test
 
@@ -39,10 +41,13 @@
 #include "define_self_test_zhongrui.h"
 #include "define_self_test_11x11.h"
 #include "define_self_test_12x12.h"
+#include "define_glue_test.h"
 
 // printf 空操作屏蔽保持全局一致性
 #if (!defined(ENABLE_PRINTF)) || (defined(ENABLE_USART))
 #define printf(fmt, ...) ((void)0)
 #endif
+
+#include "define_sy.h"
 
 #endif

@@ -142,7 +142,7 @@ uint32_t debug_tick = 0;
 /*******************************************************************/
 /*******************************************************************/
 /*******************************************************************/
-#if (!defined(ENABLE_PRINTF)) || (defined(ENABLE_USART))
+#if (defined(ENABLE_PRINTF)) && (ENABLE_PRINTF_TIME)
 // DEBUG
 static uint32_t same_freq_work_time = 0;
 static uint32_t total_work_time = 0;
@@ -1354,7 +1354,7 @@ void magic_cool_run_impedance(void)
     reset_water_intrusion_flag = true;
 #endif
 
-#if (!defined(ENABLE_PRINTF)) || (defined(ENABLE_USART))
+#if (defined(ENABLE_PRINTF)) && (ENABLE_PRINTF_TIME)
     reset_work_time_status();
 #endif
 }
@@ -1713,7 +1713,6 @@ static void track_perturb_observe(uint8_t n)
 
         if (magic_cool_mode == 0 || is_target_vol_change() ) return;
 
-    #if 1 //TODO:待定是否添加
         // 代表电压过压,调档或高温恢复常温过程会出现
         uint16_t step = 100;
         while( !pwr0 && !pwr1 && !pwr2 )
@@ -1742,7 +1741,6 @@ static void track_perturb_observe(uint8_t n)
                 return;
             }
         }
-    #endif
 
         #if ENABLE_PER
             int tmp = (magic_cool_pwr_max * track_state.pwr_proxth / 100 ) >> 2;
@@ -2145,7 +2143,7 @@ void magic_cool_run(void)
 
     check_fault_status();
 
-#if (!defined(ENABLE_PRINTF)) || (defined(ENABLE_USART))
+#if (defined(ENABLE_PRINTF)) && (ENABLE_PRINTF_TIME)
     printf_work_time();
 #endif
 }
