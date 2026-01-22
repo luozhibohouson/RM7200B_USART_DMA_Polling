@@ -151,6 +151,7 @@
     * 0x01: OVER_VOLTAGE      - 过压（主动上报）
     * 0x02: OVER_CURRENT      - 过流（主动上报）
     * 0x03: SETTING_FAILED    - 调档失败（主动上报）
+    * 0x04: NOT_LOAD          - 空载（主动上报）
     * 0xff: QUERY             - 查询指令
 
 ### 7.2 上报故障指令内容

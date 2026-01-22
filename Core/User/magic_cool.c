@@ -412,7 +412,7 @@ static void check_fault_status(void)
     const FaultPriority priority_table[] = {
         {&fault_cur_status, FAULT_OVER_CURRENT,   0},      // 过流，立即触发
         {&fault_vol_status, FAULT_OVER_VOLTAGE,   0},      // 过压，立即触发
-        {&fault_cur_status, FAULT_NOT_LOAD,       5000},   // 空载，持续5秒触发
+        {&fault_cur_status, FAULT_NOT_LOAD,       3000},   // 空载，持续5秒触发
         {&fault_vol_status, FAULT_SETTING_FAILED, 2000},   // 调档失败，持续2秒触发
     };
 
