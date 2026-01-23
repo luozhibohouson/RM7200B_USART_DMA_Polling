@@ -105,22 +105,21 @@ void EXTI_Configure(void)
     GPIO_InitTypeDef GPIO_InitStruct;
     NVIC_InitTypeDef NVIC_InitStruct;
 
-    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
-
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_EXTI, ENABLE);
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_SYSCFG, ENABLE);
 
-    // 按键引脚配置唤醒
+    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
+
+    // 串口RX引脚配置唤醒
     GPIO_StructInit(&GPIO_InitStruct);
-    GPIO_InitStruct.GPIO_Pin  = GPIO_Pin_8|GPIO_Pin_13;
+    GPIO_InitStruct.GPIO_Pin  = GPIO_Pin_13;
     GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IPU;
     GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-    SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOA, EXTI_PinSource8);
     SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOA, EXTI_PinSource13);
 
     EXTI_StructInit(&EXTI_InitStruct);
-    EXTI_InitStruct.EXTI_Line    = EXTI_Line8|EXTI_Line13;
+    EXTI_InitStruct.EXTI_Line    = EXTI_Line13;
     EXTI_InitStruct.EXTI_Mode    = EXTI_Mode_Interrupt;
     EXTI_InitStruct.EXTI_Trigger = EXTI_Trigger_Falling;
     EXTI_InitStruct.EXTI_LineCmd = ENABLE;

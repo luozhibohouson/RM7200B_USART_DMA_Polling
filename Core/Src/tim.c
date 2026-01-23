@@ -41,7 +41,7 @@ void TIM13_Configure(void)
     TIM_OCInitStruct.TIM_OCIdleState  = TIM_OCIdleState_Set;
 
     TIM_OC1Init(TIM13, &TIM_OCInitStruct);
-
+#if (HARDWARE_VERSION_CODE == HW_VER_1_0_INT)
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
 
     GPIO_PinAFConfig(GPIOA, GPIO_PinSource15, GPIO_AF_6);    /* TIM13_CH1 */
@@ -51,6 +51,17 @@ void TIM13_Configure(void)
     GPIO_InitStruct.GPIO_Speed = GPIO_Speed_High;
     GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AF_PP;
     GPIO_Init(GPIOA, &GPIO_InitStruct);
+#elif (HARDWARE_VERSION_CODE == HW_VER_2_0_INT)
+    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
+
+    GPIO_PinAFConfig(GPIOB, GPIO_PinSource8, GPIO_AF_6);    /* TIM13_CH1 */
+
+    GPIO_StructInit(&GPIO_InitStruct);
+    GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_8;
+    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_High;
+    GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AF_PP;
+    GPIO_Init(GPIOB, &GPIO_InitStruct);
+#endif
 
     TIM_CtrlPWMOutputs(TIM13, ENABLE);
 
@@ -130,6 +141,7 @@ void TIM1_Configure(void)
 #endif
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
 
+#if (HARDWARE_VERSION_CODE == HW_VER_1_0_INT)
     GPIO_PinAFConfig(GPIOB, GPIO_PinSource4, GPIO_AF_1);  /* TIM1_CH3  */
 #if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
     GPIO_PinAFConfig(GPIOB, GPIO_PinSource3, GPIO_AF_6);  /* TIM1_CH3N  */
@@ -150,6 +162,16 @@ void TIM1_Configure(void)
     GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_3;
     GPIO_InitStruct.GPIO_Speed = GPIO_Speed_High;
     GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_Out_PP;
+    GPIO_Init(GPIOB, &GPIO_InitStruct);
+#endif
+#elif (HARDWARE_VERSION_CODE == HW_VER_2_0_INT)
+    GPIO_PinAFConfig(GPIOB, GPIO_PinSource6, GPIO_AF_4);  /* TIM1_CH3  */
+    GPIO_PinAFConfig(GPIOB, GPIO_PinSource7, GPIO_AF_4);  /* TIM1_CH3N  */
+
+    GPIO_StructInit(&GPIO_InitStruct);
+    GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_6 | GPIO_Pin_7;
+    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_High;
+    GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AF_PP;
     GPIO_Init(GPIOB, &GPIO_InitStruct);
 #endif
 

@@ -66,6 +66,7 @@ void ADC_Configure(void)
     // ADC_AnyChannelSelect(ADC1, 2, ADC_Channel_3);
     ADC_AnyChannelCmd(ADC1, ENABLE);
 
+#if (HARDWARE_VERSION_CODE == HW_VER_1_0_INT)
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA | RCC_AHBPeriph_GPIOB, ENABLE);
 
     GPIO_StructInit(&GPIO_InitStruct);
@@ -76,6 +77,15 @@ void ADC_Configure(void)
 
     GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_9;
     GPIO_Init(GPIOA, &GPIO_InitStruct);
+#elif (HARDWARE_VERSION_CODE == HW_VER_2_0_INT)
+    // OPA对应通道可直连ADC对应通道，此处只初始化VIN通道
+    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
+
+    GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_1;
+    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_High;
+    GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AIN;
+    GPIO_Init(GPIOB, &GPIO_InitStruct);
+#endif
 
     ADC_Cmd(ADC1, ENABLE);
 }

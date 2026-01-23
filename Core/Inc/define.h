@@ -12,8 +12,22 @@
 #define MCU_VDD_3V3              0
 #define MCU_VDD_3V0              1
 
-#define HW_V1_0                  "1" // V1.0
-#define HARDWARE_VERSION         HW_V1_0
+// 硬件版本配置
+#define HW_VER_1_0_INT           1
+#define HW_VER_2_0_INT           2
+
+#define HARDWARE_VERSION_CODE    HW_VER_2_0_INT
+
+#if (HARDWARE_VERSION_CODE == HW_VER_1_0_INT)
+  #define HW_V1_0                "1" // V1.0
+  #define HARDWARE_VERSION_STR   HW_V1_0
+#elif (HARDWARE_VERSION_CODE == HW_VER_2_0_INT)
+  #define HW_V2_0                "2" // V2.0
+  #define HARDWARE_VERSION_STR   HW_V2_0
+#endif
+
+// 保持兼容性，HARDWARE_VERSION 仍为字符串，用于串口通讯等
+#define HARDWARE_VERSION         HARDWARE_VERSION_STR
 #define APP_VERSION              "20" //V2.0
 
 // 客户选择

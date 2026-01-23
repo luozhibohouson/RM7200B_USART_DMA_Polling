@@ -47,6 +47,7 @@ void GPIO_Configure(void)
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
 
     GPIO_StructInit(&GPIO_InitStruct);
+#if (HARDWARE_VERSION_CODE == HW_VER_1_0_INT)
     GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_5|GPIO_Pin_6;
     GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_Out_PP;
     GPIO_InitStruct.GPIO_Speed = GPIO_Speed_High;
@@ -55,6 +56,16 @@ void GPIO_Configure(void)
     GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_8;
     GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_IPU;
     GPIO_Init(GPIOA, &GPIO_InitStruct);
+#elif (HARDWARE_VERSION_CODE == HW_VER_2_0_INT)
+    GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_15;
+    GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_Out_PP;
+    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_High;
+    GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_3;
+    GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_IPU;
+    GPIO_Init(GPIOB, &GPIO_InitStruct);
+#endif
 }
 
 /* USER CODE BEGIN 2 */

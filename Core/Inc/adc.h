@@ -20,11 +20,19 @@
 #define ADC_15MHZ_CONV_FREQ_789KHZ  11   // 15M / (6.5   + 12.5) = 789KHz
 #define ADC_15MHZ_CONV_FREQ_750KHZ  12   // 15M / (7.5   + 12.5) = 750KHz
 
+#if (HARDWARE_VERSION_CODE == HW_VER_1_0_INT)
 #define ADC_CHANNEL_VHIN   ADC_Channel_9   // 高端直流电压
 // #define ADC_CHANNEL_IHIN   LL_ADC_CHANNEL_11   // 高端直流电流
 #define ADC_CHANNEL_IGND   ADC_Channel_5 // ADC_Channel_5 // ADC_Channel_6    // 低端电流
 #define ADC_CHANNEL_VOUT   ADC_Channel_4 // ADC_Channel_4 // ADC_Channel_7    // 输出电压
 #define ADC_CHANNEL_IOUT   ADC_Channel_5 // ADC_Channel_5 // ADC_Channel_6    // 输出电流
+#elif (HARDWARE_VERSION_CODE == HW_VER_2_0_INT)
+#define ADC_CHANNEL_VHIN   ADC_Channel_6   // 高端直流电压
+// #define ADC_CHANNEL_IHIN   LL_ADC_CHANNEL_11   // 高端直流电流
+#define ADC_CHANNEL_IGND   ADC_Channel_5 // 低端电流
+#define ADC_CHANNEL_VOUT   ADC_Channel_4 // 输出电压
+#define ADC_CHANNEL_IOUT   ADC_Channel_5 // 输出电流
+#endif
 
 #ifndef ADC_BUFFER_SIZE
 #if Magic_Cool_Customer != Self_Test_100K

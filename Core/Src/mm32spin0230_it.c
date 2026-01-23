@@ -196,11 +196,6 @@ void USART1_IRQHandler(void)
   *********************************************************************************************************************/
 void EXTI4_15_IRQHandler(void)
 {
-    if (RESET != EXTI_GetITStatus(EXTI_Line8))
-    {
-        EXTI_ClearITPendingBit(EXTI_Line8);
-    }
-
     if (RESET != EXTI_GetITStatus(EXTI_Line13))
     {
         EXTI_ClearITPendingBit(EXTI_Line13);

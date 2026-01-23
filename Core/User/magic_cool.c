@@ -757,11 +757,19 @@ void write_final_freq_to_flash(void)
 
 static void dcdc_power_control(uint8_t enable)
 {
+#if (HARDWARE_VERSION_CODE == HW_VER_1_0_INT)
     if( enable ) {
         GPIO_WriteBit(GPIOB, GPIO_Pin_5 | GPIO_Pin_6, Bit_SET);
     } else {
         GPIO_WriteBit(GPIOB, GPIO_Pin_5 | GPIO_Pin_6, Bit_RESET);
     }
+#elif (HARDWARE_VERSION_CODE == HW_VER_2_0_INT)
+    if( enable ) {
+        GPIO_WriteBit(GPIOA, GPIO_Pin_15, Bit_SET);
+    } else {
+        GPIO_WriteBit(GPIOA, GPIO_Pin_15, Bit_RESET);
+    }
+#endif
 }
 
 #if ENABLE_KEY_VOL_CFG
