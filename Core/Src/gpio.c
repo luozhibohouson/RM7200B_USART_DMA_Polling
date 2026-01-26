@@ -47,25 +47,20 @@ void GPIO_Configure(void)
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
 
     GPIO_StructInit(&GPIO_InitStruct);
+    GPIO_InitStruct.GPIO_Pin   = LED_PIN_PORT;
+    GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_Out_PP;
+    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_High;
+    GPIO_Init(LED_PIN_GPIO, &GPIO_InitStruct);
 #if (HARDWARE_VERSION_CODE == HW_VER_1_0_INT)
-    GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_5|GPIO_Pin_6;
-    GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_Out_PP;
-    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_High;
-    GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-    GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_8;
-    GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_IPU;
-    GPIO_Init(GPIOA, &GPIO_InitStruct);
-#elif (HARDWARE_VERSION_CODE == HW_VER_2_0_INT)
-    GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_15;
-    GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_Out_PP;
-    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_High;
-    GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-    GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_3;
-    GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_IPU;
-    GPIO_Init(GPIOB, &GPIO_InitStruct);
+    GPIO_InitStruct.GPIO_Pin   = DCDC_PIN_PORT;
+    GPIO_Init(DCDC_PIN_GPIO, &GPIO_InitStruct);
 #endif
+    GPIO_InitStruct.GPIO_Pin   = KEY_PIN_PORT;
+    GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_IPU;
+    GPIO_Init(KEY_PIN_GPIO, &GPIO_InitStruct);
+
+    GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_2;
+    GPIO_Init(GPIOB, &GPIO_InitStruct);
 }
 
 /* USER CODE BEGIN 2 */

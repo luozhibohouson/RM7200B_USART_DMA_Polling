@@ -90,7 +90,7 @@ void key_scan(void)
     }
     key_tick = get_systick();
 
-    key2 = GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_8);
+    key2 = GPIO_ReadInputDataBit(KEY_PIN_GPIO, KEY_PIN_PORT);
 
     if (first_run) {
         key2_last = key2;

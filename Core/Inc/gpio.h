@@ -33,7 +33,23 @@ extern "C" {
 /* USER CODE END Includes */
 
 /* USER CODE BEGIN Private defines */
+#if (HARDWARE_VERSION_CODE == HW_VER_1_0_INT)
+#define KEY_PIN_GPIO    GPIOA
+#define KEY_PIN_PORT    GPIO_Pin_8
 
+#define LED_PIN_GPIO    GPIOB
+#define LED_PIN_PORT    GPIO_Pin_5
+
+#define DCDC_PIN_GPIO    GPIOB
+#define DCDC_PIN_PORT    GPIO_Pin_6
+
+#elif (HARDWARE_VERSION_CODE == HW_VER_2_0_INT)
+#define KEY_PIN_GPIO    GPIOB
+#define KEY_PIN_PORT    GPIO_Pin_3
+
+#define LED_PIN_GPIO    GPIOA
+#define LED_PIN_PORT    GPIO_Pin_15
+#endif
 /* USER CODE END Private defines */
 
 void GPIO_Configure(void);
