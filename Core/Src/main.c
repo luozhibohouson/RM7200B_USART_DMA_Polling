@@ -41,6 +41,7 @@
 #include "tim.h"
 #include "controller.h"
 #include "flash_ops.h"
+#include "comp.h"
 
 
 void hardware_init(uint8_t delay_enable);
@@ -206,6 +207,9 @@ void hardware_init(uint8_t delay_enable)
 #endif
 
     GPIO_Configure();
+#if (HARDWARE_VERSION_CODE == HW_VER_2_0_INT)
+    COMP_Configure();
+#endif
     ADC_Configure();
     TIM13_Configure();
     TIM1_Configure();

@@ -181,7 +181,7 @@ void TIM1_Configure(void)
 
     TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Disable);
 #if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
-	TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Disable);
+    TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Disable);
 #endif
 }
 

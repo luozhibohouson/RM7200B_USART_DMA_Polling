@@ -34,6 +34,7 @@
 #include "usart.h"
 #include "mm32spin0230_it.h"
 #include "define.h"
+#include "comp.h"
 
 /**
   * @addtogroup MM32SPIN0230_LibSamples
@@ -201,6 +202,19 @@ void EXTI4_15_IRQHandler(void)
         EXTI_ClearITPendingBit(EXTI_Line13);
     }
 }
+
+
+/***********************************************************************************************************************
+  * @brief  This function handles COMP1_2 Handler
+  * @note   none
+  * @param  none
+  * @retval none
+  *********************************************************************************************************************/
+void COMP1_2_IRQHandler(void)
+{
+    COMP_IRQHandler();
+}
+
 /**
   * @}
   */

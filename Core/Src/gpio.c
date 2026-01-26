@@ -58,9 +58,6 @@ void GPIO_Configure(void)
     GPIO_InitStruct.GPIO_Pin   = KEY_PIN_PORT;
     GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_IPU;
     GPIO_Init(KEY_PIN_GPIO, &GPIO_InitStruct);
-
-    GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_2;
-    GPIO_Init(GPIOB, &GPIO_InitStruct);
 }
 
 /* USER CODE BEGIN 2 */
