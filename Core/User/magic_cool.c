@@ -1218,6 +1218,11 @@ void magic_cool_run_impedance(void)
     DELAY_MS_OR_RETURN_VOID(2);
     dcdc_power_control(ENABLE);
     DELAY_MS_OR_RETURN_VOID(10); //NOTE:增加延时,防止短时间电压过冲
+// 零点校准
+#if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
+    adc_dc_lcur_offset = 0;
+    adc_hvli_input_conv(ADC_CH_SIZE);
+#endif
     // 升压稳定后再开H桥PWM
     pwm_set_freq(magic_cool_freqstart);
     pwm_enable(ENABLE);
@@ -2096,6 +2101,7 @@ void magic_cool_config(void)
 
 // 零点校准
 #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
+    adc_dc_lcur_offset = 0;
     adc_hvli_input_conv(ADC_CH_SIZE);
 #endif
 

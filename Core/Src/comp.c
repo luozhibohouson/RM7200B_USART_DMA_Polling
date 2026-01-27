@@ -22,15 +22,15 @@ void COMP_Configure(void)
     COMP_StructInit(&COMP_InitStruct);
     COMP_InitStruct.COMP_Invert     = COMP_InvertingInput_3; // 反相输入连接到内部参考电压CRV
     COMP_InitStruct.COMP_NonInvert  = COMP_NonInvertingInput_1;  // 正相输入连接到 PB2
-    COMP_InitStruct.COMP_Output     = COMP_Output_None;
+    COMP_InitStruct.COMP_Output     = COMP_Output_TIM1BKIN; // 刹车信号
     COMP_InitStruct.COMP_OutputPol  = COMP_Pol_NonInvertedOut;
     COMP_InitStruct.COMP_Hysteresis = COMP_Hysteresis_No;
-    COMP_InitStruct.COMP_Mode       = COMP_Mode_MediumPower;
+    COMP_InitStruct.COMP_Mode       = COMP_Mode_LowPower;
     COMP_InitStruct.COMP_OFLT       = COMP_Filter_4_Period;
     COMP_Init(COMP2, &COMP_InitStruct);
 
     // 设置内部参考电压 CRV 为 VDDA/2
-    COMP_SetCrv(COMP_CRV_SRC_VDDA, (0xFF*20/33));
+    COMP_SetCrv(COMP_CRV_SRC_VDDA, (0xFF*25/33));
     COMP_CrvCmd(ENABLE);
 
     // 使能 COMP2
@@ -62,13 +62,12 @@ void COMP_IRQHandler(void)
         // 如果是 COMP_Pol_NonInvertedOut:
         //   - 输出高电平 (1) -> 发生了上升沿 (In+ > In-)
         //   - 输出低电平 (0) -> 发生了下降沿 (In+ < In-)
-        // if (COMP_GetOutputLevel(COMP2) == 1) {
+        if (COMP_GetOutputLevel(COMP2) == 1) {
+            extern void close_all_output(void);
+            close_all_output();
+        } else {
 
-        // } else {
-
-        // }
-
-
+        }
 
         // 清除中断标志位
         EXTI_ClearITPendingBit(EXTI_Line20);

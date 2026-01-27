@@ -183,6 +183,10 @@ void TIM1_Configure(void)
 #if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
     TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Disable);
 #endif
+
+    // 刹车信号
+    TIM_BreakInputFilterConfig(TIM1, TIM_COMPBKIN_COMP2, TIM_BKINF_2);
+    TIM_BreakInputFilterCmd(TIM1, ENABLE);
 }
 
 void pwm_enable(uint32_t enable)

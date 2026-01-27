@@ -32,7 +32,7 @@
 
 // 客户选择
 #define Self_Test           0   //自测
-#define Self_Test_100K      1   // 100K气泵测试
+#define Self_Test_100K      1   //100K气泵测试
 #define CY_ChuanYi          2   //传音 -- 衡山项目
 #define AK_Anker            3   //安克 -- 天山项目
 #define RY_Honor            4   //荣耀
