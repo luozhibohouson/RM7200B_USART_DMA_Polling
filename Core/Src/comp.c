@@ -1,4 +1,5 @@
 #include "comp.h"
+#include "usart.h"
 
 void COMP_Configure(void)
 {
@@ -62,9 +63,15 @@ void COMP_IRQHandler(void)
         // 如果是 COMP_Pol_NonInvertedOut:
         //   - 输出高电平 (1) -> 发生了上升沿 (In+ > In-)
         //   - 输出低电平 (0) -> 发生了下降沿 (In+ < In-)
+        extern uint8_t get_magic_cool_mode(void);
+        extern void close_all_output(void);
+        extern protocol_fault_t fault_over_current_status;
         if (COMP_GetOutputLevel(COMP2) == 1) {
-            extern void close_all_output(void);
-            close_all_output();
+            if( get_magic_cool_mode() )
+            {
+                close_all_output();
+                fault_over_current_status = FAULT_OVER_CURRENT;
+            }
         } else {
 
         }

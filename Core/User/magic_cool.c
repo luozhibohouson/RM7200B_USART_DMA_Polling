@@ -90,6 +90,7 @@ uint8_t current_flow_level = FLOW_LEVEL_100_PERCENT;  // 当前流量档位
 protocol_fault_t fault_status = FAULT_NORMAL;  // 当前故障状态
 protocol_fault_t fault_vol_status = FAULT_NORMAL;  // 当前过压故障状态
 protocol_fault_t fault_cur_status = FAULT_NORMAL;  // 当前过流故障状态
+protocol_fault_t fault_over_current_status = FAULT_NORMAL;  // 当前过流故障状态
 bool reset_time_flag = false;
 
 #if ENABLE_KEY_VOL_CFG
@@ -372,19 +373,20 @@ static void is_over_current(uint16_t cur, FunctionalState not_load_check_enable)
     }
 
     // 每颗IC的运放偏置电流的AD都不一样，需要重新加回偏置电流
-    if( cur > CURRENT_ADC_MAX ) {
-        close_all_output();
-        ret = FAULT_OVER_CURRENT;
-    }
+    // if( cur > CURRENT_ADC_MAX ) {
+    //     close_all_output();
+    //     ret = FAULT_OVER_CURRENT;
+    // }
 #if CURRENT_ADC_MIN > 0
-    else if( cur < CURRENT_ADC_MIN ) {
+    if( cur < CURRENT_ADC_MIN ) {
         if( not_load_check_enable == ENABLE ) {
             // close_all_output();
             ret = FAULT_NOT_LOAD;
         }
     }
+    else
 #endif
-    else {
+    {
         if( fault_cur_status == FAULT_NOT_LOAD ) {
             if( cur < CURRENT_ADC_MIN + 20 ) {
                 ret = FAULT_NOT_LOAD;
@@ -410,7 +412,7 @@ static void check_fault_status(void)
     } FaultPriority;
 
     const FaultPriority priority_table[] = {
-        {&fault_cur_status, FAULT_OVER_CURRENT,   0},      // 过流，立即触发
+        {&fault_over_current_status, FAULT_OVER_CURRENT,   0},      // 过流，立即触发
         {&fault_vol_status, FAULT_OVER_VOLTAGE,   0},      // 过压，立即触发
         {&fault_cur_status, FAULT_NOT_LOAD,       3000},   // 空载，持续5秒触发
         {&fault_vol_status, FAULT_SETTING_FAILED, 2000},   // 调档失败，持续2秒触发
@@ -421,6 +423,7 @@ static void check_fault_status(void)
 
     if( reset_time_flag ) {
         memset(fault_start_times, 0, sizeof(fault_start_times));
+        last_fault_status = FAULT_NORMAL;
         reset_time_flag = false;
     }
 
@@ -1218,11 +1221,6 @@ void magic_cool_run_impedance(void)
     DELAY_MS_OR_RETURN_VOID(2);
     dcdc_power_control(ENABLE);
     DELAY_MS_OR_RETURN_VOID(10); //NOTE:增加延时,防止短时间电压过冲
-// 零点校准
-#if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
-    adc_dc_lcur_offset = 0;
-    adc_hvli_input_conv(ADC_CH_SIZE);
-#endif
     // 升压稳定后再开H桥PWM
     pwm_set_freq(magic_cool_freqstart);
     pwm_enable(ENABLE);
@@ -1233,6 +1231,8 @@ void magic_cool_run_impedance(void)
     fault_status = FAULT_NORMAL;
     fault_vol_status = FAULT_NORMAL;
     fault_cur_status = FAULT_NORMAL;
+    // fault_over_current_status = FAULT_NORMAL;
+    reset_time_flag = true;
 
     first_scan_freq = true;
 
@@ -1364,7 +1364,6 @@ void magic_cool_run_impedance(void)
 #endif
 
     reset_pwr_proxth_flag = true;
-    reset_time_flag = true;
 #if ENABLE_WATER_INTRUSION
     reset_water_intrusion_flag = true;
 #endif

@@ -450,7 +450,9 @@ void adc_hvli_input_conv(int num)  // 直流高压输入电压,低端电流
 
     if( !adc_dc_lcur_offset ) {
         adc_dc_lcur_offset = (uint16_t)adc_dc_lcur_avg;
-    #if HARDWARE_VERSION_CODE == HW_VER_2_0_INT
+    #if (HARDWARE_VERSION_CODE == HW_VER_1_0_INT)
+        printf("adc_dc_lcur_offset:%d\r\n", adc_dc_lcur_offset);
+    #elif (HARDWARE_VERSION_CODE == HW_VER_2_0_INT)
         #define Over_Current_mA         80      //限流
         #define Sampling_Resistance_mR  110     //采样电阻
         #define OpAmp_Gain              101     //运算放大倍数
@@ -467,8 +469,6 @@ void adc_hvli_input_conv(int num)  // 直流高压输入电压,低端电流
 
         COMP_SetCrv(COMP_CRV_SRC_VDDA, register_value);
         printf("adc_dc_lcur_offset:%d register_value:%d Over_Current_mA:%d\r\n", adc_dc_lcur_offset, register_value, Over_Current_mA);
-    #else
-        printf("adc_dc_lcur_offset:%d\r\n", adc_dc_lcur_offset);
     #endif
     }
     adc_dc_lcur_avg -= adc_dc_lcur_offset;

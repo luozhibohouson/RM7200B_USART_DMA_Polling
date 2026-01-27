@@ -253,14 +253,16 @@ void deep_sleep(void)
                             RCC_APB1Periph_ADC1 | \
                             RCC_APB1Periph_USART1 | \
                             RCC_APB1Periph_TIM13 | \
-                            RCC_APB1Periph_TIM1;
+                            RCC_APB1Periph_TIM1 | \
+                            RCC_APB1Periph_COMP;
 
             RCC->APB1RSTR &= ~(RCC_APB1Periph_OPA1 | \
                             RCC_APB1Periph_OPA2 | \
                             RCC_APB1Periph_ADC1 | \
                             RCC_APB1Periph_USART1 | \
                             RCC_APB1Periph_TIM13 | \
-                            RCC_APB1Periph_TIM1);
+                            RCC_APB1Periph_TIM1 | \
+                            RCC_APB1Periph_COMP);
 
             RCC->AHBRSTR |= RCC_AHBPeriph_DMA;
             RCC->AHBRSTR &= ~(RCC_AHBPeriph_DMA);
@@ -278,12 +280,21 @@ void deep_sleep(void)
             GPIO_InitStruct.GPIO_Speed  = GPIO_Speed_High;
             GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AIN;
             GPIO_Init(GPIOB, &GPIO_InitStruct);
-
+        #if (HARDWARE_VERSION_CODE == HW_VER_1_0_INT)
             GPIO_WriteBit(GPIOA, GPIO_Pin_15, Bit_SET);
-            GPIO_WriteBit(GPIOA, GPIO_Pin_9, Bit_RESET);
+            GPIO_WriteBit(GPIOA, GPIO_Pin_9, Bit_RESET); //VIN分压检测引脚
             GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_15|GPIO_Pin_9;
             GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_Out_PP;
             GPIO_Init(GPIOA, &GPIO_InitStruct);
+        #elif (HARDWARE_VERSION_CODE == HW_VER_2_0_INT)
+            GPIO_WriteBit(GPIOA, GPIO_Pin_15, Bit_SET);
+            GPIO_WriteBit(GPIOB, GPIO_Pin_1, Bit_RESET); //VIN分压检测引脚
+            GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_15;
+            GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_Out_PP;
+            GPIO_Init(GPIOA, &GPIO_InitStruct);
+            GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_1;
+            GPIO_Init(GPIOB, &GPIO_InitStruct);
+        #endif
 
             EXTI_Configure();
 

@@ -184,9 +184,11 @@ void TIM1_Configure(void)
     TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Disable);
 #endif
 
+#if (HARDWARE_VERSION_CODE == HW_VER_2_0_INT)
     // 刹车信号
     TIM_BreakInputFilterConfig(TIM1, TIM_COMPBKIN_COMP2, TIM_BKINF_2);
     TIM_BreakInputFilterCmd(TIM1, ENABLE);
+#endif
 }
 
 void pwm_enable(uint32_t enable)
