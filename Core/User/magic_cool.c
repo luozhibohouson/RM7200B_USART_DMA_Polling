@@ -69,7 +69,7 @@ typedef struct {
     uint32_t normal_vol_freq_end;
     uint32_t normal_work_freq;
     uint16_t reserved:15;
-    bool have_been_write_freq:1;
+    uint16_t have_been_write_freq:1;
     uint16_t crc16_check;
 }_flow_freq_cfg_t;
 
