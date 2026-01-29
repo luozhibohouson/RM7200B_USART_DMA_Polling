@@ -5,9 +5,9 @@
 
 /* Bootloader配置 */
 #define BOOTLOADER_START_ADDR       0x08000000
-#define BOOTLOADER_SIZE             (8*1024)    // 8KB
+#define BOOTLOADER_SIZE             (5*1024)    // 5KB
 #define APP_START_ADDR              (BOOTLOADER_START_ADDR + BOOTLOADER_SIZE)
-#define APP_SIZE                    (23*1024)     // 23KB
+#define APP_SIZE                    (26*1024)     // 26KB
 #define PARAM_START_ADDR            (APP_START_ADDR + APP_SIZE)
 #define PARAM_SIZE                  (1*1024)      // 1KB
 

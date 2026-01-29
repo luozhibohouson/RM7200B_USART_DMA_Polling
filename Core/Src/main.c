@@ -130,6 +130,49 @@ void EXTI_Configure(void)
     NVIC_InitStruct.NVIC_IRQChannelPriority = 0x01;
     NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&NVIC_InitStruct);
+
+#if (Magic_Cool_Customer != CY_ChuanYi)
+    // 按键唤醒配置
+    #if (HARDWARE_VERSION_CODE == HW_VER_1_0_INT)
+        RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
+        GPIO_InitStruct.GPIO_Pin  = GPIO_Pin_3;
+        GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IPU;
+        GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+        SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, EXTI_PinSource3);
+
+        EXTI_StructInit(&EXTI_InitStruct);
+        EXTI_InitStruct.EXTI_Line    = EXTI_Line3;
+        EXTI_InitStruct.EXTI_Mode    = EXTI_Mode_Interrupt;
+        EXTI_InitStruct.EXTI_Trigger = EXTI_Trigger_Falling;
+        EXTI_InitStruct.EXTI_LineCmd = ENABLE;
+        EXTI_Init(&EXTI_InitStruct);
+
+        NVIC_InitStruct.NVIC_IRQChannel = EXTI2_3_IRQn;
+        NVIC_InitStruct.NVIC_IRQChannelPriority = 0x01;
+        NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;
+        NVIC_Init(&NVIC_InitStruct);
+    #else
+        RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
+        GPIO_InitStruct.GPIO_Pin  = GPIO_Pin_3;
+        GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IPU;
+        GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+        SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, EXTI_PinSource3);
+
+        EXTI_StructInit(&EXTI_InitStruct);
+        EXTI_InitStruct.EXTI_Line    = EXTI_Line3;
+        EXTI_InitStruct.EXTI_Mode    = EXTI_Mode_Interrupt;
+        EXTI_InitStruct.EXTI_Trigger = EXTI_Trigger_Falling;
+        EXTI_InitStruct.EXTI_LineCmd = ENABLE;
+        EXTI_Init(&EXTI_InitStruct);
+
+        NVIC_InitStruct.NVIC_IRQChannel = EXTI2_3_IRQn;
+        NVIC_InitStruct.NVIC_IRQChannelPriority = 0x01;
+        NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;
+        NVIC_Init(&NVIC_InitStruct);
+    #endif
+#endif
 }
 
 void EXTI_Configure_deinit(void)
@@ -227,6 +270,14 @@ uint8_t deep_sleep_flag = 0;
 void deep_sleep(void)
 {
     static uint8_t sleep_time = 0;
+#if 1
+    static uint32_t deep_sleep_tick = 0;
+    extern uint8_t get_magic_cool_mode(void);
+    if( get_magic_cool_mode() == 0 && get_systick() - deep_sleep_tick >= 5*1000 ) {
+        deep_sleep_tick = get_systick();
+        deep_sleep_flag = DEEP_SLEEP_FLAG_SLEEP;
+    }
+#endif
     if( deep_sleep_flag == DEEP_SLEEP_FLAG_SLEEP ) {
 
         extern void close_all_output(void);
@@ -244,8 +295,10 @@ void deep_sleep(void)
                 write_final_freq_to_flash();
             #endif
 
+        #if defined(ENABLE_USART)
             // 等待USART1发送完成
             while (RESET == USART_GetFlagStatus(USART1, USART_FLAG_TC));
+        #endif
 
             // 复位各个模块
             RCC->APB1RSTR |= RCC_APB1Periph_OPA1 | \
@@ -272,22 +325,20 @@ void deep_sleep(void)
 
             GPIO_StructInit(&GPIO_InitStruct);
             GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_All;
-            GPIO_InitStruct.GPIO_Speed  = GPIO_Speed_High;
             GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AIN;
             GPIO_Init(GPIOA, &GPIO_InitStruct);
 
             GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_All;
-            GPIO_InitStruct.GPIO_Speed  = GPIO_Speed_High;
             GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AIN;
             GPIO_Init(GPIOB, &GPIO_InitStruct);
         #if (HARDWARE_VERSION_CODE == HW_VER_1_0_INT)
-            GPIO_WriteBit(GPIOA, GPIO_Pin_15, Bit_SET);
+            GPIO_WriteBit(GPIOA, GPIO_Pin_15, Bit_RESET);
             GPIO_WriteBit(GPIOA, GPIO_Pin_9, Bit_RESET); //VIN分压检测引脚
             GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_15|GPIO_Pin_9;
             GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_Out_PP;
             GPIO_Init(GPIOA, &GPIO_InitStruct);
         #elif (HARDWARE_VERSION_CODE == HW_VER_2_0_INT)
-            GPIO_WriteBit(GPIOA, GPIO_Pin_15, Bit_SET);
+            GPIO_WriteBit(GPIOA, GPIO_Pin_15, Bit_RESET);
             GPIO_WriteBit(GPIOB, GPIO_Pin_1, Bit_RESET); //VIN分压检测引脚
             GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_15;
             GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_Out_PP;
@@ -295,6 +346,8 @@ void deep_sleep(void)
             GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_1;
             GPIO_Init(GPIOB, &GPIO_InitStruct);
         #endif
+            RCC->CFGR = 0x000000A0;
+            FLASH->ACR &=  ~(0x01U << FLASH_ACR_PRFTBE_Pos);
 
             EXTI_Configure();
 
@@ -306,6 +359,9 @@ void deep_sleep(void)
 
             __nop();__nop();__nop();
             __nop();__nop();__nop();
+
+            extern void SystemInit(void);
+            SystemInit();
 
             EXTI_Configure_deinit();
 

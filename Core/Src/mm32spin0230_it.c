@@ -188,6 +188,19 @@ void USART1_IRQHandler(void)
     usart_callback();
 }
 
+/***********************************************************************************************************************
+  * @brief  This function handles EXTI2_3 Handler
+  * @note   none
+  * @param  none
+  * @retval none
+  *********************************************************************************************************************/
+void EXTI2_3_IRQHandler(void)
+{
+    if (RESET != EXTI_GetITStatus(EXTI_Line3))
+    {
+        EXTI_ClearITPendingBit(EXTI_Line3);
+    }
+}
 
 /***********************************************************************************************************************
   * @brief  This function handles EXTI4_15 Handler
