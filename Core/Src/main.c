@@ -346,7 +346,10 @@ void deep_sleep(void)
             GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_1;
             GPIO_Init(GPIOB, &GPIO_InitStruct);
         #endif
+            uint32_t rcc_cfgr_value = RCC->CFGR;
+            // AHB配置为8分频 60M/8=7.5M
             RCC->CFGR = 0x000000A0;
+            // 关闭FLASH预取缓存(AHB时钟必须低于30MHz才能开启or关闭预取缓存)
             FLASH->ACR &=  ~(0x01U << FLASH_ACR_PRFTBE_Pos);
 
             EXTI_Configure();
@@ -360,8 +363,8 @@ void deep_sleep(void)
             __nop();__nop();__nop();
             __nop();__nop();__nop();
 
-            extern void SystemInit(void);
-            SystemInit();
+            FLASH->ACR |=  (0x01U << FLASH_ACR_PRFTBE_Pos);
+            RCC->CFGR = rcc_cfgr_value;
 
             EXTI_Configure_deinit();
 
