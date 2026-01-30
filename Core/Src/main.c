@@ -270,7 +270,7 @@ uint8_t deep_sleep_flag = 0;
 void deep_sleep(void)
 {
     static uint8_t sleep_time = 0;
-#if 1
+#if 0
     static uint32_t deep_sleep_tick = 0;
     extern uint8_t get_magic_cool_mode(void);
     if( get_magic_cool_mode() == 0 && get_systick() - deep_sleep_tick >= 5*1000 ) {

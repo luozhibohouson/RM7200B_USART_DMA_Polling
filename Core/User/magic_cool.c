@@ -1891,8 +1891,8 @@ void magic_cool_freq_track(void)
 #if MAGIC_COOL_TRACK_DEFAULT == MAGIC_COOL_TRACK_CURRENT
     // 电流
     if (get_systick() >= tick_cur) {
-        magic_cool_freq_track_current();
         tick_cur = get_systick() + feedback_tick;
+        magic_cool_freq_track_current();
     }
 #endif
 

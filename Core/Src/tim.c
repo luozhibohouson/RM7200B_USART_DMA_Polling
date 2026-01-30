@@ -224,6 +224,7 @@ void timer1_set_output(uint32_t freq, uint32_t duty)
     tim1_freq = freq;
     tim1_reload = autoreload;
     tim1_duty = compare;
+    // printf("autoreload:%d, compare:%d\r\n", autoreload, compare);
 }
 
 void timer1_set_freq(uint32_t freq)
