@@ -59,7 +59,7 @@
 #include "define_sy.h"
 
 // printf 空操作屏蔽保持全局一致性
-#if (!defined(ENABLE_PRINTF)) || (defined(ENABLE_USART)) || (Magic_Cool_Customer == SongYang)
+#if (!defined(ENABLE_PRINTF)) || (defined(ENABLE_USART))
 #define printf(fmt, ...) ((void)0)
 #endif
 

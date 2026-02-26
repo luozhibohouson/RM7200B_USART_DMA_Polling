@@ -460,8 +460,8 @@ static void check_fault_status(void)
     // 只有在最终确认的故障状态变化时才上报
     if (last_fault_status != fault_status) {
         last_fault_status = fault_status;
+        fault_report_active(fault_status);
         if (fault_status != FAULT_NORMAL) {
-            fault_report_active(fault_status);
             if( fault_status == FAULT_OVER_VOLTAGE || \
                 fault_status == FAULT_OVER_CURRENT || \
                 fault_status == FAULT_NOT_LOAD ) {
