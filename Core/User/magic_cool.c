@@ -1440,6 +1440,12 @@ static uint32_t measure_power_simple(uint32_t freq, uint8_t n)
     magic_cool_voltage_closeloop(config.target_vol, config.vol_err, 100, config.check_overvoltage);
 
     if (fault_vol_status == FAULT_NORMAL) {
+        float current_vpp = (float)(magic_cool_vpp + voltage_offset) / voltage_gain;
+        float target_vpp = (float)config.target_vol;
+        if ((current_vpp < (target_vpp - 1.5f)) || (current_vpp > (target_vpp + 1.5f))) {
+            return 0;
+        }
+
         DELAY_MS_OR_RETURN(config.delay_before_ms, 0);
         return measure_power_with_config(&config);
     }
@@ -1533,9 +1539,9 @@ static uint32_t get_freq_from_scan_index(uint32_t start_freq, uint16_t step, uin
 
 // ==================== 频率追踪逻辑层 ====================
 
-#if ENABLE_PER
-    #define PWR_PROXTH      3  // 6
-    #define PWR_PROXTH_MIN  2
+#if ENABLE_PER //TODO:一拖二阈值测试
+    #define PWR_PROXTH      3 // 6 // 3
+    #define PWR_PROXTH_MIN  2 // 4 // 2
     #define PWR_PROXTH_MAX  10 //15
 #else
     #define PWR_PROXTH      ((int)POWER_PROXTH(30))
@@ -1835,7 +1841,7 @@ void magic_cool_vpp_change(void)
                 // tick_cur = get_systick() + feedback_tick;
 
                 // 每次启动后30s内，无视PWM变化
-                // ignore_pwm_change_tick = get_systick() + 30000;
+                ignore_pwm_change_tick = get_systick() + 10000;
             } else {
                 // 每次切档后5s内，无视PWM变化
                 ignore_pwm_change_tick = get_systick() + 5000;
@@ -1848,7 +1854,6 @@ void magic_cool_vpp_change(void)
         // magic_cool_voltage_closeloop(magic_cool_target_vol, 2, 50, ENABLE);// 电压闭环
         // sys_delayms(10);
 
-        //TODO: 切档可以在此再次优化
         uint32_t pwr = 0;
         magic_cool_voltage_closeloop(magic_cool_target_vol, 1, 100, ENABLE);// 电压闭环
 
@@ -1876,7 +1881,8 @@ void magic_cool_vpp_change(void)
         reset_water_intrusion_flag = true;
     #endif
     }
-#elif ENABLE_WRITE_FREQ
+// #elif ENABLE_WRITE_FREQ
+#else
     if( first_scan_freq == true )
     {
         ignore_pwm_change_tick = get_systick() + 5000;
