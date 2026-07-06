@@ -1,0 +1,88 @@
+digraph track_perturb_observe {
+    rankdir=TB;
+    node [shape=box, style=filled, fillcolor=lightblue, fontname="Microsoft YaHei"];
+    edge [fontname="Microsoft YaHei", fontsize=10];
+    
+    Start [label="track_perturb_observe(n)", shape=ellipse, fillcolor=lightgreen];
+    
+    Init [label="初始化计数器\npwr0_max_cnt = 0\npwr2_max_cnt = 0"];
+    
+    Measure [label="测量三点功率\nfreq0 = freq1 - perturb_step\nfreq1 = 当前频率\nfreq2 = freq1 + perturb_step\n\npwr0 = measure_power_simple(freq0, n)\npwr1 = measure_power_simple(freq1, n)\npwr2 = measure_power_simple(freq2, n)"];
+    
+    CheckZero [label="pwr0 && pwr1 && pwr2\n是否全为0?", shape=diamond, fillcolor=yellow];
+    
+    ExpandSearch [label=<
+<table border="0" cellborder="0" cellspacing="0">
+<tr><td align="left"><font face="Courier New" point-size="8">
+<b>// 扩大搜索范围</b><br/>
+step = 100;<br/>
+while( !pwr0 &amp;&amp; !pwr1 &amp;&amp; !pwr2 ) {<br/>
+&nbsp;&nbsp;freq0 = freq1 - step;<br/>
+&nbsp;&nbsp;freq2 = freq1 + step;<br/>
+&nbsp;&nbsp;pwr0 = measure_power_simple(freq0, n);<br/>
+&nbsp;&nbsp;pwr2 = measure_power_simple(freq2, n);<br/>
+&nbsp;&nbsp;step += 50;<br/>
+&nbsp;&nbsp;<br/>
+&nbsp;&nbsp;if( pwr0 &gt; pwr2 ) {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;pwm_set_freq(freq0); return;<br/>
+&nbsp;&nbsp;} else if( pwr2 &gt; pwr0 ) {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;pwm_set_freq(freq2); return;<br/>
+&nbsp;&nbsp;}<br/>
+}
+</font></td></tr>
+</table>
+>, shape=plaintext, fillcolor="#ffe6e6"];
+    
+    CalcThreshold [label=<
+<table border="0" cellborder="0" cellspacing="0">
+<tr><td align="left"><font face="Courier New" point-size="9">
+<b>// 计算动态阈值</b><br/>
+#if ENABLE_PER<br/>
+&nbsp;&nbsp;tmp = (magic_cool_pwr_max * <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;track_state.pwr_proxth / 100) &gt;&gt; 2;<br/>
+#else<br/>
+&nbsp;&nbsp;tmp = track_state.pwr_proxth &gt;&gt; 1;<br/>
+#endif<br/>
+<b>// PER模式: tmp ≈ 最大功率 × 7.5%</b>
+</font></td></tr>
+</table>
+>, shape=plaintext, fillcolor="#f5f5f5"];
+    
+    ComparePwr0 [label="pwr0 > pwr1+tmp\n且\npwr0 > pwr2+tmp?", shape=diamond, fillcolor=yellow];
+    SetFreq0 [label="切换到左侧频率\npwm_set_freq(freq0)\nmagic_cool_pwr_max = pwr0", fillcolor="#90EE90"];
+    
+    ComparePwr1 [label="pwr1 > pwr0+tmp\n且\npwr1 > pwr2+tmp?", shape=diamond, fillcolor=yellow];
+    KeepFreq1 [label="保持当前频率\npwm_set_freq(freq1)\nmagic_cool_pwr_max = pwr1", fillcolor="#90EE90"];
+    
+    ComparePwr2 [label="pwr2 > pwr0+tmp\n且\npwr2 > pwr1+tmp?", shape=diamond, fillcolor=yellow];
+    SetFreq2 [label="切换到右侧频率\npwm_set_freq(freq2)\nmagic_cool_pwr_max = pwr2", fillcolor="#90EE90"];
+    
+    FlatRegion [label="无明显差异（平坦区域）\n保持当前频率\npwm_set_freq(freq1)", fillcolor="#FFD700"];
+    
+    End [label="函数返回", shape=ellipse, fillcolor=lightcoral];
+    
+    Start -> Init;
+    Init -> Measure;
+    Measure -> CheckZero;
+    
+    CheckZero -> ExpandSearch [label="是"];
+    CheckZero -> CalcThreshold [label="否"];
+    
+    ExpandSearch -> End;
+    
+    CalcThreshold -> ComparePwr0;
+    
+    ComparePwr0 -> SetFreq0 [label="是"];
+    ComparePwr0 -> ComparePwr1 [label="否"];
+    
+    ComparePwr1 -> KeepFreq1 [label="是"];
+    ComparePwr1 -> ComparePwr2 [label="否"];
+    
+    ComparePwr2 -> SetFreq2 [label="是"];
+    ComparePwr2 -> FlatRegion [label="否"];
+    
+    SetFreq0 -> End;
+    KeepFreq1 -> End;
+    SetFreq2 -> End;
+    FlatRegion -> End;
+}

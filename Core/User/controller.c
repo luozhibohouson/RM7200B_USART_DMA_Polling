@@ -190,7 +190,7 @@ void rm_magic_config(void)
     magic_eng_config();
 #endif
 
-    printf("rm_magic_config\r\n");
+    printf("POWERON rm_magic_config\r\n");
 }
 
 void rm_magic_run(void)

@@ -2,19 +2,20 @@
 #define __DEFINE_GLUE_TEST_H
 
 #include "define.h"
-
+#include "magic_cool.h"
 #if Magic_Cool_Customer == Glue_Test
 
-// =================== 电压设定 ===================
-#define     VOL_TARGET      40 // 50 //40  // 流量目标
-#define     VOL_TARGET_90P  37 // 47 //37
-#define     VOL_TARGET_80P  34 // 45 //34
-#define     VOL_TARGET_70P  31 // 43 //31
-#define     VOL_TARGET_60P  28 // 40 //28
-#define     VOL_TARGET_50P  25 // 37 //25
+// =================== 流量目标设定 ===================
+// 修改说明：原压电泵交流驱动目标 50V 改为 DC-DC 直流输出 3.4V
+#define     VOL_TARGET      3.4f  // DC-DC 直流输出电压目标 3.4V
+#define     VOL_TARGET_90P  3.23f // 90% 电压 3.23V
+#define     VOL_TARGET_80P  3.06f // 80% 电压 3.06V
+#define     VOL_TARGET_70P  2.89f // 70% 电压 2.89V
+#define     VOL_TARGET_60P  2.72f // 60% 电压 2.72V
+#define     VOL_TARGET_50P  2.55f // 50% 电压 2.55V
 
-// 最大电压，超过停止输出
-#define     VOL_TARGET_MAX    (VOL_TARGET+30)
+// 最大电压保护（超过 3.8V 停止输出）
+#define     VOL_TARGET_MAX    3.8f  // 最大保护电压 3.8V
 // ================================================
 
 // =================== 功能开关 ===================
@@ -27,12 +28,31 @@
 // ================================================
 
 // =================== 气泵频率设定 ===================
-#define FREQ_MIN                   20000 // 25500
-#define FREQ_MAX                   30000 // 27500
-// ================================================
+#if 0
+#define FREQ_MIN                   19000//4000//31000//1000//19000////19000//16080//13000//4500//10000//4500//4920//3000//20000第一个 // 25500
+#define FREQ_MAX                   24000//12000//8000//35000//30000//24000////24000//22000//20080//17000//14000//5300//8000//60000第一个//30000 // 27500
+#elif 0
+#define FREQ_MIN                   20000//4000//31000//1000//19000////19000//16080//13000//4500//10000//4500//4920//3000//20000第一个 // 25500
+#define FREQ_MAX                   40000//15000//12000//8000//35000//30000//24000////24000//22000//20080//17000//14000//5300//8000//60000第一个//30000 // 27500
+#elif 0
+#define FREQ_MIN                   15000//4000//31000//1000//19000////19000//16080//13000//4500//10000//4500//4920//3000//20000第一个 // 25500
+#define FREQ_MAX                   19000//12000//8000//35000//30000//24000////24000//22000//20080//17000//14000//5300//8000//60000第一个//30000 // 27500
+#elif 0
+#define FREQ_MIN                   32000//11000//10000//20000//1000//19000////19000//16080//13000//4500//10000//4500//4920//3000//20000第一个 // 25500
+#define FREQ_MAX                   37000//33000//15000//12000//25000//30000//24000////24000//22000//20080//17000//14000//5300//8000//60000第一个//30000 // 27500
+#elif 0
+#define FREQ_MIN                   20800//11000//10000//20000//1000//19000////19000//16080//13000//4500//10000//4500//4920//3000//20000第一个 // 25500
+#define FREQ_MAX                   22800//33000//15000//12000//25000//30000//24000////24000//22000//20080//17000//14000//5300//8000//60000第一个//30000 // 27500
+#elif 0
+#define FREQ_MIN                   34200//11000//10000//20000//1000//19000////19000//16080//13000//4500//10000//4500//4920//3000//20000第一个 // 25500
+#define FREQ_MAX                   37200//33000//15000//12000//25000//30000//24000////24000//22000//20080//17000//14000//5300//8000//60000第一个//30000 // 27500
+#elif 1
+#define FREQ_MIN                   gScanFreqMin //30000//11000//10000//20000//1000//19000////19000//16080//13000//4500//10000//4500//4920//3000//20000第一个 // 25500
+#define FREQ_MAX                   gScanFreqMax //34000//33000//15000//12000//25000//30000//24000////24000//22000//20080//17000//14000//5300//8000//60000第一个//30000 // 27500
+#endif// ================================================
 
 // =================== 驱动方式设定 ===================
-#define PWM_DRIVER_METHOD          PWM_DIFFERENTIAL_DRIVE
+#define PWM_DRIVER_METHOD         PWM_DIFFERENTIAL_DRIVE
 // ================================================
 
 // =================== 供电选择设定 ===================
@@ -60,21 +80,21 @@
 // ================================================
 
 // =================== 电压增益与偏移设定 ===================
+// 修改说明：原压电泵交流 50V 改为 DC-DC 直流 3.4V 输出
+// 分压电阻：110K:22K = 1:6
+// 增益计算：ADC 计数 = V_target × (4096 / 3.3) × 6 = V_target × 206.8
 #if MCU_VDD == MCU_VDD_3V3
   #if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
-    #define MAGIC_COOL_VOLTAGE_GAIN  11.8
+    #define MAGIC_COOL_VOLTAGE_GAIN  206.8  // DC-DC 直流 3.4V 输出增益
   #else
-    #define MAGIC_COOL_VOLTAGE_GAIN  13.79
+    #define MAGIC_COOL_VOLTAGE_GAIN  206.8  // DC-DC 直流 3.4V 输出增益
   #endif
 #elif MCU_VDD == MCU_VDD_3V0
-  #define MAGIC_COOL_VOLTAGE_GAIN   12.98
+  #define MAGIC_COOL_VOLTAGE_GAIN   206.8  // DC-DC 直流 3.4V 输出增益
 #endif
 
-#if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
-  #define MAGIC_COOL_VOLTAGE_OFFSET 0
-#else
-  #define MAGIC_COOL_VOLTAGE_OFFSET 12.46
-#endif
+// 直流信号无偏移
+#define MAGIC_COOL_VOLTAGE_OFFSET   0
 // ================================================
 
 // =================== DAC升压配置设定 ===================
@@ -89,21 +109,27 @@
 // ================================================
 
 // =================== 功率计算参数设定 ===================
+// VOCurP 电流检测公式：I = (VOCurP - 1V) / 510
+// 其中：1V 为偏置电压，510 = 100Ω×5.1(运放增益)
 #if MCU_VDD == MCU_VDD_3V3
-  #define CURRENT_COEFFICIENT        (0.07324)
-  #define VOL_H_COEFFICIENT          (0.01207)
-  // 0.07324 * 0.01207 = 0.0008843037
+  #define VOL_H_COEFFICIENT      (3.3*6/4096)        // 0.00483398... 电压系数 (分压比 1:6)
 #elif MCU_VDD == MCU_VDD_3V0
-  #define CURRENT_COEFFICIENT        (0.06658)
-  #define VOL_H_COEFFICIENT          (0.01098)
-  // 0.06658 * 0.01098 = 0.0007310484
+  #define VOL_H_COEFFICIENT      (3.0*6/4096)        // 0.00439453... 电压系数 (分压比 1:6)
 #endif
 
-#define CUR_CAL(cur_ad)             (cur_ad * CURRENT_COEFFICIENT) // (3.3*AD/4096/11)*1000  已放大1000倍 -> 单位为mA
-#define VOL_H_CAL(vol_ad)           (vol_ad * VOL_H_COEFFICIENT)   // 3.3*AD/4096/0.0667
-#define POWER_CAL(vol_ad, cur_ad)   (VOL_H_CAL(vol_ad) * CUR_CAL(cur_ad))
-#define POWER_PROXTH(pwr)           (pwr / (CURRENT_COEFFICIENT * VOL_H_COEFFICIENT))
+// 电流计算宏（VOCurP 高端总电流检测）
+#define CUR_CAL(cur_ad)           ((cur_ad * 3.3 / 4096 - 0*3.3/4096) / 510)  // 单位：A (安培)
+// 计算过程：ADC 值 → 电压 (×3.3/4096) → 减偏置 (-1V) → 除以增益 (/510)
+
+// 电压计算宏
+#define VOL_H_CAL(vol_ad)         (vol_ad *(3.3/4096)/0.167f)//(vol_ad *(0.653f/925)/0.191f)  // 单位：V (伏特)
+
+// 功率计算宏
+#define POWER_CAL(vol_ad, cur_ad) (VOL_H_CAL(vol_ad) * CUR_CAL(cur_ad))  // 单位：W (瓦特)
+#define POWER_PROXTH(pwr)         (pwr / (VOL_H_COEFFICIENT * 3.3 / 4096 / 510))  // 功率→ADC 阈值
+
+#define POWER_AMP(pwr)         1000*(pwr*0.00482*(3.3 / 4096)/510)  // ADC阈值→功率
 // ================================================
-#endif
 
+#endif
 #endif

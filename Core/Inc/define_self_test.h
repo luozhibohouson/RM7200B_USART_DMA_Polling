@@ -6,12 +6,12 @@
 #if Magic_Cool_Customer == Self_Test
 
 // =================== 电压设定 ===================
-#define     VOL_TARGET      40 // 50 //40  // 流量目标
-#define     VOL_TARGET_90P  37 // 47 //37
-#define     VOL_TARGET_80P  34 // 45 //34
-#define     VOL_TARGET_70P  31 // 43 //31
-#define     VOL_TARGET_60P  28 // 40 //28
-#define     VOL_TARGET_50P  25 // 37 //25
+#define     VOL_TARGET      40 // 38 // 50 //40  // 流量目标
+#define     VOL_TARGET_90P  37 // 33 // 47 //37
+#define     VOL_TARGET_80P  34 // 28 // 45 //34
+#define     VOL_TARGET_70P  31 // 23 // 43 //31
+// #define     VOL_TARGET_60P  28 // 40 //28
+// #define     VOL_TARGET_50P  25 // 37 //25
 
 // 最大电压，超过停止输出
 #define     VOL_TARGET_MAX    (VOL_TARGET+30)
@@ -20,8 +20,8 @@
 // =================== 功能开关 ===================
 #define     ENABLE_PER             1  // 百分比阈值设定 or 固定阈值设定
 #define     ENABLE_WATER_INTRUSION 0  // 进水检测开关
-#define     ENABLE_KEY_VOL_CFG     0  // 按键调整电压
-#define     ENABLE_WRITE_FREQ      0  // 写频开关
+#define     ENABLE_KEY_VOL_CFG     1  // 按键调整电压
+#define     ENABLE_WRITE_FREQ      1  // 写频开关
 #define     ENABLE_QUERY_CMD       0  // 查询指令开关，需要开启串口通讯才能使用 -- 仅在内部测试时使用，客户版本禁止开启该宏
 #define     ENABLE_PUMP_STATUS_CMD 0  // 气泵状态查询开关
 #define     ENABLE_PRINTF_TIME     0  // 打印时间

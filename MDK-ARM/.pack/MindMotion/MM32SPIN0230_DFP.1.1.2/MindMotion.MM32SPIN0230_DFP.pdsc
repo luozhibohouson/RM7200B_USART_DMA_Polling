@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<package schemaVersion="1.2" xmlns:xs="http://www.w3.org/2001/XMLSchema-instance" xs:noNamespaceSchemaLocation="PACK.xsd">
+    <vendor>MindMotion</vendor>
+    <url>https://www.mindmotion.com.cn/support/software/keil_pack/</url>
+    <name>MM32SPIN0230_DFP</name>
+    <description>MindMotion MM32SPIN0230 Series Device Support, Drivers and Examples</description>
+    <releases>
+        <release version="1.1.2" >
+             Release version of MM32SPIN0230 Device Family Pack.
+        </release>
+    </releases>
+
+    <devices>
+        <!-- generated, do not modify this section! -->
+
+        <family Dfamily="MM32SPIN0230 Series" Dvendor="MindMotion:132">
+        <processor Dcore="Cortex-M0"   DcoreVersion="r0p0" Dfpu="0" Dmpu="0" Dendian="Little-endian" Dclock="60000000"/>
+            <description>
+MM32SPIN0230 Series
+            </description>
+
+            <!-- ************************  Subfamily 'MM32SPIN0230'  **************************** -->
+            <subFamily DsubFamily="MM32SPIN0230B">
+            <description>
+Subfamily: MM32SPIN0230B
+
+Frequency: 60MHz
+Memory: 32 kB Flash, 4 kB RAM
+Communication: 1 x USART
+Analog : ADC, COMP， OPAMP
+power saving mode:stop, sleep
+Other: HWDIV,TIM
+            </description>
+                <device Dname="MM32SPIN0230B3TV">
+                    <debug svd="SVD/MM32SPIN0230.svd" />
+                    <memory id="IROM1" start="0x08000000" size="0x8000" startup="1" default="1" />
+                    <memory id="IRAM1" start="0x20000000" size="0x1000" init="0" default="1" />
+                    <algorithm name="Flash/MM32SPIN0230_32.FLM" start="0x08000000" size="0x8000" default="1" />
+                    <algorithm name="Flash/MM32SPIN0230_3.FLM" start="0x1FE00000" size="0xC00" default="1" />
+                </device>
+                <device Dname="MM32SPIN0230B3NV">
+                    <debug svd="SVD/MM32SPIN0230.svd" />
+                    <memory id="IROM1" start="0x08000000" size="0x8000" startup="1" default="1" />
+                    <memory id="IRAM1" start="0x20000000" size="0x1000" init="0" default="1" />
+                    <algorithm name="Flash/MM32SPIN0230_32.FLM" start="0x08000000" size="0x8000" default="1" />
+                    <algorithm name="Flash/MM32SPIN0230_3.FLM" start="0x1FE00000" size="0xC00" default="1" />
+                </device>
+                <device Dname="MM32SPIN0230B1NV">
+                    <debug svd="SVD/MM32SPIN0230.svd" />
+                    <memory id="IROM1" start="0x08000000" size="0x8000" startup="1" default="1" />
+                    <memory id="IRAM1" start="0x20000000" size="0x1000" init="0" default="1" />
+                    <algorithm name="Flash/MM32SPIN0230_32.FLM" start="0x08000000" size="0x8000" default="1" />
+                    <algorithm name="Flash/MM32SPIN0230_3.FLM" start="0x1FE00000" size="0xC00" default="1" />
+                </device>
+                <device Dname="MM32SPIN0230B1TV">
+                    <debug svd="SVD/MM32SPIN0230.svd" />
+                    <memory id="IROM1" start="0x08000000" size="0x8000" startup="1" default="1" />
+                    <memory id="IRAM1" start="0x20000000" size="0x1000" init="0" default="1" />
+                    <algorithm name="Flash/MM32SPIN0230_32.FLM" start="0x08000000" size="0x8000" default="1" />
+                    <algorithm name="Flash/MM32SPIN0230_3.FLM" start="0x1FE00000" size="0xC00" default="1" />
+                </device>
+
+            </subFamily>
+            <subFamily DsubFamily="MM32SPINPico">
+                <processor Dcore="Cortex-M0"   DcoreVersion="r0p0" Dfpu="0" Dmpu="0" Dendian="Little-endian" Dclock="60000000"/>
+                <description>
+    Subfamily: MM32SPINPico
+
+    Frequency: 60MHz
+    Memory: 16 kB Flash, 2 kB RAM
+    Communication: 1 x USART
+    Analog : ADC, COMP,OPAMP
+    power saving mode:stop, sleep mode
+    Other: HWDIV,TIM
+                </description>
+                <device Dname="MM32SPINPico">
+                    <debug svd="SVD/MM32SPIN0230.svd" />
+                    <memory id="IROM1" start="0x08000000" size="0x4000" startup="1" default="1" />
+                    <memory id="IRAM1" start="0x20000000" size="0x800" init="0" default="1" />
+                    <algorithm name="Flash/MM32SPIN0230_16.FLM" start="0x08000000" size="0x4000" default="1" />
+                    <algorithm name="Flash/MM32SPIN0230_3.FLM" start="0x1FE00000" size="0xC00" default="1" />
+                </device>
+
+            </subFamily>
+        </family>
+    </devices>
+
+
+</package>

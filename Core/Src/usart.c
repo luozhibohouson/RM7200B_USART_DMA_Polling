@@ -1,8 +1,11 @@
+#include <string.h>`
+
 #include "usart.h"
 #include "usart1.h"
 #include "main.h"
 #include "adc.h"
 #include "controller.h"
+#include "magic_cool.h"
 
 #ifndef ENABLE_QUERY_CMD
   #define ENABLE_QUERY_CMD 0
@@ -12,9 +15,8 @@ uint32_t uart_rx_flag = 0;
 uint32_t uart_rx_len = 0;
 uint8_t  uart_rxbuffer[30] = {0};
 uint8_t  uart_cmd[30] = {0};
-
-static __IO uint32_t vector_table[48] __attribute__((at(0x20000000)));
-static __IO upgrade_state_t upgrade_state __attribute__((at(0x200000C0)));
+uint8_t  DebugMode =0;
+static __IO upgrade_state_t upgrade_state;
 
 void USART_DMA_Configure(uint8_t *Buffer, uint8_t Length);
 
@@ -56,7 +58,7 @@ void USART_PrintfConfigure(uint32_t Baudrate)
     USART_InitStruct.USART_WordLength = USART_WordLength_8b;
     USART_InitStruct.USART_StopBits   = USART_StopBits_1;
     USART_InitStruct.USART_Parity     = USART_Parity_No;
-    USART_InitStruct.USART_Mode       = USART_Mode_Tx; // USART_Mode_Rx | USART_Mode_Tx;
+    USART_InitStruct.USART_Mode       = USART_Mode_Rx | USART_Mode_Tx;//USART_Mode_Tx; // USART_Mode_Rx | USART_Mode_Tx;
     USART_InitStruct.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
     USART_Init(USART1, &USART_InitStruct);
 
@@ -84,8 +86,10 @@ void USART_PrintfConfigure(uint32_t Baudrate)
     NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&NVIC_InitStruct);
 
-    USART_ITConfig(USART1, USART_IT_IDLE, ENABLE);
+    // USART_ITConfig(USART1, USART_IT_IDLE, ENABLE);
 
+    USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
+    
     USART_Cmd(USART1, ENABLE);
 
     // USART_DMA_Configure(uart_rxbuffer, sizeof(uart_rxbuffer));
@@ -193,7 +197,8 @@ void usart_transmit(uint8_t *buf, uint32_t len)
 void usart_callback(void)
 {
 #if 0
-    if (USART_GetITStatus(USART1, USART_IT_IDLE) != RESET) {
+    if (USART_GetITStatus(USART1, USART_IT_IDLE) != RESET) 
+    {
         DMA_Cmd(DMA1_Channel2, DISABLE);
 
         uart_rx_len = sizeof(uart_rxbuffer) - DMA_GetCurrDataCounter(DMA1_Channel2);
@@ -206,20 +211,46 @@ void usart_callback(void)
 
         DMA_Cmd(DMA1_Channel2, ENABLE);
     }
-#else
+#elif 0
     uint8_t rxdata = 0;
 
-    if (USART_GetITStatus(USART1, USART_IT_IDLE) != RESET) {
+    if (USART_GetITStatus(USART1, USART_IT_IDLE) != RESET) 
+    {
         if( uart_rx_len > 0 ) {
             uart_rx_flag = 1;
         }
 
         USART_ReceiveData(USART1); //通过读取DR寄存器，清除IDLE标志位
-    } else if (RESET != USART_GetITStatus(USART1, USART_IT_RXNE))  {
+    } 
+    else if (RESET != USART_GetITStatus(USART1, USART_IT_RXNE))  
+    {
         rxdata = USART_ReceiveData(USART1);
 
-        if( uart_rx_len < sizeof(uart_rxbuffer) ) {
+        if( uart_rx_len < sizeof(uart_rxbuffer) ) 
+        {
             uart_rxbuffer[uart_rx_len++] = rxdata;
+        }
+    }
+#else
+    uint8_t rxdata = 0;
+
+   
+    if (RESET != USART_GetITStatus(USART1, USART_IT_RXNE))  
+    {
+        rxdata = USART_ReceiveData(USART1);
+        // printf("%02x", rxdata);
+        if( uart_rx_len < sizeof(uart_rxbuffer) ) 
+        {
+            uart_rxbuffer[uart_rx_len++] = rxdata;
+
+           if (uart_rxbuffer[uart_rx_len-1] == '\n' || uart_rxbuffer[uart_rx_len-1] == '\r')
+           {
+             uart_rxbuffer[uart_rx_len - 1] = '\0'; // 替换换行符
+             uart_rx_flag = 1;                      // 设置标志位
+            // RxIndex = 0; // 重置索引
+            //  USART_ITConfig(USART1, USART_IT_RXNE, DISABLE);
+
+           }
         }
     }
 #endif
@@ -953,7 +984,8 @@ void uart_cmd_process(void)
 {
     static uint32_t update_tick = 0;
 
-    if (uart_rx_flag == 1) {
+    if (uart_rx_flag == 1) 
+    {
         memcpy(uart_cmd, uart_rxbuffer, uart_rx_len);
 
         protocol_cmd_process();
@@ -964,10 +996,306 @@ void uart_cmd_process(void)
 
         uart_rx_flag = 0;
         uart_rx_len = 0;
-    } else {
+    } 
+    else 
+    {
         usart_fault_report_process();
     }
 }
+
+
+#if UART_DEBUG
+extern uint8_t  magic_cool_mode;
+
+
+
+void ParsePWMFreqString(void)
+{
+ // 查找 "HZ" 的位置
+    char *hz_pos = strstr(uart_rxbuffer, "HZ");
+
+    if (hz_pos != NULL)
+    {
+        // 提取频率数字部分（从第9个字符开始到 HZ 之前）
+        char freq_str[10] = {0};
+
+        int freq_len = hz_pos - (uart_rxbuffer + 9);
+        
+        if (freq_len > 0 && freq_len < 10)
+        {
+            strncpy(freq_str, uart_rxbuffer + 9, freq_len);
+            freq_str[freq_len] = '\0';
+            
+            // 转换为数字
+            uint32_t freq = 0;
+            int valid = 1;
+            
+            // 验证是否都是数字
+            for (int i = 0; i < freq_len; i++)
+            {
+                if (freq_str[i] < '0' || freq_str[i] > '9')
+                {
+                    valid = 0;
+                    break;
+                }
+            }
+            
+            if (valid)
+            {
+                freq = (uint32_t)atoi(freq_str);
+                
+                // 验证频率范围（大于1000）
+                if (freq > 1000)
+                {
+                    printf("Parsed PWM frequency: %lu Hz\r\n", freq);
+                    
+                    // 设置 PWM 频率
+                    extern void pwm_set_freq(uint32_t freq);
+
+                    if(gPowerTestMode==DC_CURRENT_HIGH)
+                    {
+                      OPA_Disable();
+                    }
+                    else
+                    {
+                      OPA_Enable();
+                    }
+
+                    pwm_set_freq(freq);
+                    pwm_enable(ENABLE);
+
+                   
+
+                    test_pwm_power();
+
+                    DebugMode = 1;
+                 
+                        
+
+
+                    printf("PWM frequency: %lu Hz\r\n", freq);
+                }
+                else
+                {
+                    printf("Error: Frequency must be > 1000 Hz (got: %lu)\r\n", freq);
+                }
+            }
+            else
+            {
+                printf("Error: Invalid frequency format\r\n");
+            }
+        }
+        else
+        {
+            printf("Error: Frequency value too long or empty\r\n");
+        }
+    }
+    else
+    {
+        printf("Error: Missing 'HZ' suffix\r\n");
+    }
+
+
+
+}
+
+void ParseScanFreqString(void)
+{
+    uint8_t flag = 0;
+    // 首先尝试解析组合格式: FREQ-MIN20000HZ,MAX25000HZ
+    char *min_pos = strstr(uart_rxbuffer, "FREQ-MIN");
+    char *max_pos = strstr(uart_rxbuffer, "MAX");
+    
+    if (min_pos != NULL && max_pos != NULL && max_pos > min_pos)
+    {
+        // 找到 MIN 后面的 HZ
+        char *min_hz_pos = strstr(min_pos, "HZ");
+        // 找到 MAX 后面的 HZ
+        char *max_hz_pos = strstr(max_pos, "HZ");
+        
+        if (min_hz_pos != NULL && max_hz_pos != NULL)
+        {
+            // 提取 MIN 频率值
+            char min_freq_str[10] = {0};
+            int min_start_offset = 8;  // "FREQ-MIN" 长度为8
+            int min_freq_len = min_hz_pos - (min_pos + min_start_offset);
+            
+            if (min_freq_len > 0 && min_freq_len < 10)
+            {
+                strncpy(min_freq_str, min_pos + min_start_offset, min_freq_len);
+                min_freq_str[min_freq_len] = '\0';
+                
+                // 验证并转换 MIN 频率
+                int valid = 1;
+                for (int i = 0; i < min_freq_len; i++)
+                {
+                    if (min_freq_str[i] < '0' || min_freq_str[i] > '9')
+                    {
+                        valid = 0;
+                        break;
+                    }
+                }
+                
+                if (valid)
+                {
+                    uint32_t min_freq = (uint32_t)atoi(min_freq_str);
+                    if (min_freq > 1000)
+                    {
+                        gScanFreqMin = min_freq;
+                        flag|=0x01;
+
+                        printf("Parsed MIN frequency: %lu Hz\r\n", min_freq);
+                    }
+                    else
+                    {
+                        printf("Error: MIN frequency must be > 1000 Hz (got: %lu)\r\n", min_freq);
+                    }
+                }
+            }
+            
+            // 提取 MAX 频率值
+            char max_freq_str[10] = {0};
+            int max_start_offset = 3;  // "MAX" 长度为3
+            int max_freq_len = max_hz_pos - (max_pos + max_start_offset);
+            
+            if (max_freq_len > 0 && max_freq_len < 10)
+            {
+                strncpy(max_freq_str, max_pos + max_start_offset, max_freq_len);
+                max_freq_str[max_freq_len] = '\0';
+                
+                // 验证并转换 MAX 频率
+                int valid = 1;
+                for (int i = 0; i < max_freq_len; i++)
+                {
+                    if (max_freq_str[i] < '0' || max_freq_str[i] > '9')
+                    {
+                        valid = 0;
+                        break;
+                    }
+                }
+                
+                if (valid)
+                {
+                    uint32_t max_freq = (uint32_t)atoi(max_freq_str);
+                    if (max_freq > 1000)
+                    {
+                        gScanFreqMax = max_freq;
+                        flag|=0x02;
+
+
+                        printf("Parsed MAX frequency: %lu Hz\r\n", max_freq);
+                        
+                    }
+                    else
+                    {
+                        printf("Error: MAX frequency must be > 1000 Hz (got: %lu)\r\n", max_freq);
+                    }
+                }
+            }
+            
+            if( (flag&0x03) == 0x03 ) 
+            {
+                magic_cool_set_limt(gScanFreqMin, gScanFreqMax);
+            }
+            return;  // 组合格式解析完成，直接返回
+        }
+    }
+    
+  
+}
+
+void ProcessDebugUartData(void)
+{
+    if (uart_rx_flag)
+    {
+        
+        printf("Received string: %s\r\n", uart_rxbuffer);
+
+        // printf("strcmp: %d\r\n", strcmp(uart_rxbuffer,"MODE3_30V_200HZ"));
+
+        
+       
+        // 解析 PWM-FREQ-XXXXHZ 格式
+        if (strncmp(uart_rxbuffer, "PWM-FREQ-", 9) == 0)
+        {
+           ParsePWMFreqString();
+          
+
+        }
+        else if (strncmp(uart_rxbuffer, "FREQ-", 5) == 0)
+        {
+           ParseScanFreqString();
+          
+
+        }        
+        else if (strncmp(uart_rxbuffer, "stopdebug", 9) == 0)
+        {
+        
+            DebugMode = 0;
+            printf("STOP DEBUG PWM\r\n");
+        }
+        else if (strncmp(uart_rxbuffer, "readpower", 9) == 0)
+        {
+        
+            test_pwm_power();
+
+            printf("readPower\r\n");
+        }
+        else if (strncmp(uart_rxbuffer, "CurrentWaveON",13) == 0)
+        {
+            DefineDebugCurrentWave = true;
+            printf("Current Wave Debug Enabled\r\n");
+        }
+        else if (strncmp(uart_rxbuffer, "CurrentWaveOFF", 14) == 0)
+        {
+            DefineDebugCurrentWave = false;
+            printf("Current Wave Debug Disabled\r\n");
+        }
+        else if(strncmp(uart_rxbuffer, "HighCurrent", 11) == 0)
+        {
+            gPowerTestMode = DC_CURRENT_HIGH;
+            close_all_output();
+
+            printf("High Current Mode Enabled,offset:%d\r\n", adc_dc_hcur_offset);
+        }
+        else if(strncmp(uart_rxbuffer, "LowCurrent", 10) == 0)
+        {
+            gPowerTestMode = DC_CURRENT_LOW;
+            close_all_output();
+            printf("Low Current Mode Enabled,offset:%d\r\n", adc_dc_lcur_offset);
+        }
+        else if (strncmp(uart_rxbuffer, "CurrentMinExceptionOn", 21) == 0)
+        {
+            DefineDebugCurrentException = true;
+            printf("Current Exception Debug Enabled\r\n");
+        }
+        else if (strncmp(uart_rxbuffer, "CurrentMinExceptionOff", 22) == 0)
+        {
+            DefineDebugCurrentException = false;
+            printf("Current Exception Debug Disabled\r\n");
+        }
+        else if (strncmp(uart_rxbuffer, "QueryScanFreqResult", 18) == 0)
+        {
+           
+            printf("Scan Result: RunFreq=%lu Hz, magic_cool_pwr_max=%lu, Power=%.3f mW\r\n", magic_cool_runfreq, magic_cool_pwr_max_scanresult, POWER_AMP(magic_cool_pwr_max_scanresult));
+
+        }
+        else
+        {
+            printf("Unknown command: %s\r\n", uart_rxbuffer);
+        }
+       
+       
+
+
+        uart_rx_flag = 0; // 清除标志位
+        uart_rx_len = 0; // 重置索引
+        memset(uart_rxbuffer, 0, sizeof(uart_rxbuffer)); // 清空缓冲区，防止残留旧数据
+
+    }
+}
+
+#endif
 
 /**
  * @brief 主动上报故障代码

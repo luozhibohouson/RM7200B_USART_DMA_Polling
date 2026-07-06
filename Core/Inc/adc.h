@@ -22,16 +22,18 @@
 
 #if (HARDWARE_VERSION_CODE == HW_VER_1_0_INT)
 #define ADC_CHANNEL_VHIN   ADC_Channel_9   // 高端直流电压
-// #define ADC_CHANNEL_IHIN   LL_ADC_CHANNEL_11   // 高端直流电流
+#define ADC_CHANNEL_IHIN   ADC_Channel_7  //LL_ADC_CHANNEL_11   // 高端直流电流
 #define ADC_CHANNEL_IGND   ADC_Channel_5 // ADC_Channel_5 // ADC_Channel_6    // 低端电流
 #define ADC_CHANNEL_VOUT   ADC_Channel_4 // ADC_Channel_4 // ADC_Channel_7    // 输出电压
 #define ADC_CHANNEL_IOUT   ADC_Channel_5 // ADC_Channel_5 // ADC_Channel_6    // 输出电流
+#define ADC_CHANNEL_VOCURP ADC_Channel_8 // VOCurP 电流检测（高端总电流）
 #elif (HARDWARE_VERSION_CODE == HW_VER_2_0_INT)
 #define ADC_CHANNEL_VHIN   ADC_Channel_6   // 高端直流电压
 // #define ADC_CHANNEL_IHIN   LL_ADC_CHANNEL_11   // 高端直流电流
 #define ADC_CHANNEL_IGND   ADC_Channel_5 // 低端电流
 #define ADC_CHANNEL_VOUT   ADC_Channel_4 // 输出电压
 #define ADC_CHANNEL_IOUT   ADC_Channel_5 // 输出电流
+#define ADC_CHANNEL_VOCURP ADC_Channel_8 // VOCurP 电流检测（高端总电流）
 #endif
 
 #ifndef ADC_BUFFER_SIZE
@@ -43,6 +45,8 @@
 #define ADC_CH_SIZE 30  // ADC缓冲区大
 #endif
 #endif
+
+
 
 
 extern uint32_t adc_freq;
@@ -58,12 +62,13 @@ extern float adc_cur_avg;  // 电流平均值
 extern float adc_dc_hvol_avg;  // 直流高压电压
 extern float adc_dc_hcur_avg;  // 直流高压电流
 extern float adc_dc_lcur_avg;  // 直流低压电流
+extern float adc_vocurp_avg;   // VOCurP 电流检测平均值（高端总电流）
 
-#if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
+// #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
 extern uint16_t adc_dc_hcur_offset;
-#elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
+// #elif MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_LOW
 extern uint16_t adc_dc_lcur_offset;
-#endif
+// #endif
 
 
 #ifdef MAGIC_COOL_VPP_RMS
@@ -80,6 +85,7 @@ void adc_voltage_current_get(int num);
 void adc_output_conv(int num);
 void adc_hvli_input_conv(int num);
 void adc_hv_input_conv(int num);
+void adc_vocurp_conv(int num);  // VOCurP 高端总电流检测
 
 float voltage_get_vpp_sum(int num);
 float current_get_ipp_sum(int num);
@@ -90,6 +96,11 @@ float current_get_ipp_sum(int num);
 void adc_voltage_get_vpp(int num);
 void adc_current_get_ipp(int num);
 
+void adc_set_channel_dma(uint32_t srcaddr, uint32_t ch0, uint32_t ch1, uint32_t num);
+
+extern void SetPowerOnFlag(bool flag); 
+extern bool DefineDebugCurrentWave;
+extern bool DefineDebugCurrentException;
 void adc_test(void);
 
 #endif

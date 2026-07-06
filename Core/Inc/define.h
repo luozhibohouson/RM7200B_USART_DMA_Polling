@@ -16,7 +16,7 @@
 #define HW_VER_1_0_INT           1
 #define HW_VER_2_0_INT           2
 
-#define HARDWARE_VERSION_CODE    HW_VER_2_0_INT
+#define HARDWARE_VERSION_CODE    HW_VER_1_0_INT
 
 #if (HARDWARE_VERSION_CODE == HW_VER_1_0_INT)
   #define HW_V1_0                "1" // V1.0
@@ -29,6 +29,10 @@
 // 保持兼容性，HARDWARE_VERSION 仍为字符串，用于串口通讯等
 #define HARDWARE_VERSION         HARDWARE_VERSION_STR
 #define APP_VERSION              "20" //V2.0
+
+
+
+
 
 // 客户选择
 #define Self_Test           0   //自测
@@ -43,7 +47,7 @@
 #define Glue_Test           9   //胶水测试
 #define SongYang            10  //送样
 
-#define Magic_Cool_Customer  Self_Test
+#define Magic_Cool_Customer  Glue_Test
 
 //根据 Magic_Cool_Customer 选择 具体客户配置
 #include "define_self_test.h"

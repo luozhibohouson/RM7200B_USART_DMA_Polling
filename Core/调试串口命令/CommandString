@@ -1,0 +1,11 @@
+PWM-FREQ-30000HZ--->设置泵的PWM工作频率
+FREQ-MIN30000HZ,MAX32000HZ--->设置扫频范围
+stopdebug--->停止调试PWM频率进入运行模式.
+readpower--->读取泵的电压和电流ADC数值
+CurrentWaveON--->打开电流电压ADC数值打印信息.
+CurrentWaveOFF--->关闭电流电压ADC数值打印信息
+HighCurrent--->扫频使用高电流模式
+LowCurrent--->扫频使用低电流模式
+CurrentMinExceptionOn--->电流最小值异常报警打开  //printf("no valid valley\r\n"); 
+CurrentMinExceptionOff--->电流最小值异常报警关闭 //printf("no valid valley\r\n");
+QueryScanFreqResult  ---> 查询扫频结果，返回之前扫频结果运行频率和最大功率值     

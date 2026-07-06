@@ -4,6 +4,8 @@
 #include <stdarg.h>
 #include <ctype.h>
 
+
+
 #include "main.h"
 #include "rm_math.h"
 #include "rm_fft.h"
@@ -13,16 +15,15 @@
 #include "stdbool.h"
 #include "arm_math.h"  // 包含CMSIS DSP库
 #include "adc.h"
-
-
-
-#define FFT_SIZE 128  // FFT大小
+// C:\Keil_v5\ARM\PACK\ARM\CMSIS\5.7.0\CMSIS\DSP\Lib\ARM
+// C:\Keil_v5\ARM\PACK\ARM\CMSIS\5.4.0\CMSIS\Lib\ARM
+#define FFT_SIZE 1//128  // FFT大小
 
 float32_t fft_input[FFT_SIZE * 2];  // FFT输入缓冲区
 //float32_t fft_output[FFT_SIZE];  // FFT输出缓冲区
 
-
-// 处理ADC数据并进行FFT计算
+arm_cfft_instance_q31 x;
+// 处理ADC数据并进行FFT计算arm_cfft_init_f32
 float32_t ProcessADCData(float32_t* voltage_data, float32_t* current_data) 
 {
     int print_flag = 0;

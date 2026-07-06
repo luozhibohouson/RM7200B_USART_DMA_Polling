@@ -6,9 +6,9 @@
 #if Magic_Cool_Customer == AK_Anker
 
 // =================== 电压设定 ===================
-#define     VOL_TARGET      40 // 30 // 40 // 40  // 流量目标
-#define     VOL_TARGET_1    30 // 28 // 30 // 50
-#define     VOL_TARGET_2    25 // 25 // 25 // 60
+#define     VOL_TARGET      50 // 30 // 40 // 40  // 流量目标
+#define     VOL_TARGET_1    40 // 28 // 30 // 50
+#define     VOL_TARGET_2    30 // 25 // 25 // 60
 
 // 最大电压，超过停止输出
 #define     VOL_TARGET_MAX    (VOL_TARGET_2+30)
@@ -17,12 +17,12 @@
 // =================== 功能开关 ===================
 #define     ENABLE_PER             1  // 百分比阈值设定 or 固定阈值设定
 #define     ENABLE_WATER_INTRUSION 0  // 进水检测开关
-#define     ENABLE_KEY_VOL_CFG     0  // 按键调整电压
+#define     ENABLE_KEY_VOL_CFG     1  // 按键调整电压
 // ================================================
 
 // =================== 气泵频率设定 ===================
 #define FREQ_MIN                   20000
-#define FREQ_MAX                   30000
+#define FREQ_MAX                   25000
 // ================================================
 
 // =================== 驱动方式设定 ===================

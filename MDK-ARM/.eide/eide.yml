@@ -1,0 +1,224 @@
+version: "4.1"
+name: USART_DMA_Polling_App_Debug
+type: ARM
+deviceName: MM32SPIN0230B3TV
+packDir: .pack/MindMotion/MM32SPIN0230_DFP.1.1.2
+srcDirs: []
+virtualFolder:
+  name: <virtual_root>
+  files: []
+  folders:
+    - name: APP
+      files:
+        - path: ../Core/Src/main.c
+        - path: ../Core/Src/mm32spin0230_it.c
+        - path: ../Core/Src/platform.c
+        - path: ../Core/Src/usart.c
+        - path: ../Core/Src/adc.c
+        - path: ../Core/Src/gpio.c
+        - path: ../Core/Src/tim.c
+        - path: ../Core/User/controller.c
+        - path: ../Core/User/magic_cool.c
+        - path: ../Core/User/pid.c
+        - path: ../Core/User/rm_math.c
+        - path: ../Core/Src/opa.c
+        - path: ../Core/User/rm_fft.c
+        - path: ../Core/Src/flash_ops.c
+        - path: ../Core/Src/comp.c
+      folders: []
+    - name: DEFINE
+      files:
+        - path: ../Core/Inc/define.h
+        - path: ../Core/Inc/define_anker.h
+        - path: ../Core/Inc/define_cy.h
+        - path: ../Core/Inc/define_honor.h
+        - path: ../Core/Inc/define_self_test.h
+        - path: ../Core/Inc/define_self_test_100k.h
+        - path: ../Core/Inc/define_self_test_11x11.h
+        - path: ../Core/Inc/define_self_test_12x12.h
+        - path: ../Core/Inc/define_glue_test.h
+        - path: ../Core/Inc/define_sy.h
+      folders: []
+    - name: HAL_LIB
+      files:
+        - path: ../Device/MM32SPIN0230/HAL_Lib/src/hal_adc.c
+        - path: ../Device/MM32SPIN0230/HAL_Lib/src/hal_comp.c
+        - path: ../Device/MM32SPIN0230/HAL_Lib/src/hal_dbg.c
+        - path: ../Device/MM32SPIN0230/HAL_Lib/src/hal_dma.c
+        - path: ../Device/MM32SPIN0230/HAL_Lib/src/hal_exti.c
+        - path: ../Device/MM32SPIN0230/HAL_Lib/src/hal_flash.c
+        - path: ../Device/MM32SPIN0230/HAL_Lib/src/hal_gpio.c
+        - path: ../Device/MM32SPIN0230/HAL_Lib/src/hal_hwdiv.c
+        - path: ../Device/MM32SPIN0230/HAL_Lib/src/hal_iwdg.c
+        - path: ../Device/MM32SPIN0230/HAL_Lib/src/hal_misc.c
+        - path: ../Device/MM32SPIN0230/HAL_Lib/src/hal_opamp.c
+        - path: ../Device/MM32SPIN0230/HAL_Lib/src/hal_pwr.c
+        - path: ../Device/MM32SPIN0230/HAL_Lib/src/hal_rcc.c
+        - path: ../Device/MM32SPIN0230/HAL_Lib/src/hal_syscfg.c
+        - path: ../Device/MM32SPIN0230/HAL_Lib/src/hal_tim.c
+        - path: ../Device/MM32SPIN0230/HAL_Lib/src/hal_uid.c
+        - path: ../Device/MM32SPIN0230/HAL_Lib/src/hal_usart.c
+      folders: []
+    - name: STARTUP
+      files:
+        - path: ../Device/MM32SPIN0230/Source/system_mm32spin0230.c
+        - path: ../Device/MM32SPIN0230/Source/KEIL_StartAsm/startup_mm32spin0230_keil.s
+      folders: []
+    - name: DOC
+      files:
+        - path: ../readme.txt
+      folders: []
+    - name: ::CMSIS
+      files:
+        - path: c:/Keil_v5/ARM/PACK/ARM/CMSIS/5.7.0/CMSIS/DSP/Lib/ARM/arm_cortexM0l_math.lib
+      folders: []
+dependenceList: []
+outDir: build
+miscInfo:
+  uid: 6cf7c541a8f90ee9553920ed4e6ff3a3
+targets:
+  USART_DMA_Polling:
+    cppPreprocessAttrs:
+      defineList:
+        - USE_STDPERIPH_DRIVER
+        - ARM_MATH_CM0
+        - ENABLE_PRINTF
+      incList:
+        - .
+        - ../Device/CMSIS/Core/Include
+        - ../Device/MM32SPIN0230/HAL_Lib/inc
+        - ../Device/MM32SPIN0230/Include
+        - ../Core/Inc
+        - ../Core/User
+        - .cmsis/include
+        - RTE/_USART_DMA_Polling
+      libList: []
+    excludeList: []
+    settings: {}
+    toolchain: AC5
+    toolchainConfigMap:
+      AC5:
+        archExtensions: ""
+        cpuType: Cortex-M0
+        floatingPointHardware: none
+        options:
+          version: 4
+          afterBuildTasks:
+            - name: "[Copy linker output for Keil User Commands]"
+              abortAfterFailed: true
+              command: mkdir ${KEIL_OUTPUT_DIR} & copy "${OutDir}\${ProjectName}.axf" "${KEIL_OUTPUT_DIR}\${KEIL_OUTPUT_NAME}.axf"
+              disable: false
+            - name: .\keil5_disp_size_bar.exe
+              abortAfterFailed: true
+              command: .\keil5_disp_size_bar.exe
+              disable: false
+            - name: .\hex2bin_app_debug.bat
+              abortAfterFailed: true
+              command: .\hex2bin_app_debug.bat
+              disable: false
+          asm-compiler:
+            defines: []
+          beforeBuildTasks: []
+          c/cpp-compiler:
+            CXX_FLAGS: --diag_suppress=550,177,223
+            C_FLAGS: --diag_suppress=550,177,223
+            c99-mode: true
+            one-elf-section-per-function: true
+            optimization: level-2
+            warnings: all-warnings
+          global:
+            output-debug-info: enable
+            use-microLIB: true
+          linker:
+            $outputTaskExcludes:
+              - .bin
+            output-format: elf
+            ro-base: "0x00000000"
+            rw-base: "0x20000000"
+            xo-base: ""
+        scatterFilePath: ""
+        storageLayout:
+          RAM:
+            - id: 1
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
+            - id: 2
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
+            - id: 3
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
+            - id: 1
+              isChecked: true
+              mem:
+                size: "0xe0"
+                startAddr: "0x20000000"
+              noInit: true
+              tag: IRAM
+            - id: 2
+              isChecked: true
+              mem:
+                size: "0xf20"
+                startAddr: "0x200000e0"
+              noInit: false
+              tag: IRAM
+          ROM:
+            - id: 1
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
+            - id: 2
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
+            - id: 3
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
+            - id: 1
+              isChecked: true
+              isStartup: true
+              mem:
+                size: "0x5c00"
+                startAddr: "0x8000000"
+              tag: IROM
+            - id: 2
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: IROM
+        useCustomScatterFile: false
+    uploadConfigMap:
+      JLink:
+        baseAddr: ""
+        bin: ""
+        cpuInfo:
+          cpuName: MM32SPIN0230B3TV
+          vendor: MindMotion
+        otherCmds: ""
+        proType: 1
+        speed: 2000
+    uploader: JLink

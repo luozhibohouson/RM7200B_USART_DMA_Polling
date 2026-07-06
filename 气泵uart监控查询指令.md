@@ -164,7 +164,7 @@
 
 ## 9. CRC16
   数据包crc16和升级包crc16均使用下面crc16校验方法
-
+****
   crc16计算算法如下：
 
     uint16_t crc16(uint8_t* buff, uint32_t len)

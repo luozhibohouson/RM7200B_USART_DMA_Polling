@@ -228,6 +228,14 @@ int main(void)
 
     while (1)
     {
+        #if UART_DEBUG
+        ProcessDebugUartData();
+
+        if(DebugMode)
+        continue;
+        #endif
+
+        
         // key_scan();
         rm_magic_run();
 #if defined(ENABLE_USART)
@@ -251,7 +259,7 @@ void hardware_init(uint8_t delay_enable)
 
     GPIO_Configure();
     ADC_Configure();
-    TIM13_Configure();
+    // TIM13_Configure();
     TIM1_Configure();
     OPAMP_Configure();
 #if (HARDWARE_VERSION_CODE == HW_VER_2_0_INT)
@@ -278,7 +286,8 @@ void deep_sleep(void)
         deep_sleep_flag = DEEP_SLEEP_FLAG_SLEEP;
     }
 #endif
-    if( deep_sleep_flag == DEEP_SLEEP_FLAG_SLEEP ) {
+    if( deep_sleep_flag == DEEP_SLEEP_FLAG_SLEEP ) 
+    {
 
         extern void close_all_output(void);
         close_all_output();
@@ -332,8 +341,8 @@ void deep_sleep(void)
             GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AIN;
             GPIO_Init(GPIOB, &GPIO_InitStruct);
         #if (HARDWARE_VERSION_CODE == HW_VER_1_0_INT)
-            GPIO_WriteBit(GPIOA, GPIO_Pin_15, Bit_RESET);
-            GPIO_WriteBit(GPIOA, GPIO_Pin_9, Bit_RESET); //VIN分压检测引脚
+            GPIO_WriteBit(GPIOA, GPIO_Pin_15, Bit_RESET);  //PIN4-->PWM
+            GPIO_WriteBit(GPIOA, GPIO_Pin_9, Bit_RESET); //VIN分压检测引脚 20PIN
             GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_15|GPIO_Pin_9;
             GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_Out_PP;
             GPIO_Init(GPIOA, &GPIO_InitStruct);

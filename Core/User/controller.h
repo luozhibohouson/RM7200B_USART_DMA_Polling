@@ -34,12 +34,12 @@
 
 // 电压参数是否在ADC转换完后计算 1. 是，2. 否
 #define MAGIC_COOL_VPP_RMS              1   // 计算有效值
-#define MAGIC_COOL_ADC_CENTER           1   // 是否处理数据中心对称
+#define MAGIC_COOL_ADC_CENTER           0   // 是否处理数据中心对称
 
 // 阻抗计算方式： 1. 通过Vpp，Ipp计算，2. 通过有效值计算，3. 其他
 #define MAGIC_COOL_IMPEDANCE_VPP        0   // 通过Vpp，Ipp计算
 #define MAGIC_COOL_IMPEDANCE_RMS        1   // 通过有效值计算
-#define MAGIC_COOL_IMPEDANCE_DEFAULT    2   // 默认通过Vpp，Ipp计算
+#define MAGIC_COOL_IMPEDANCE_DEFAULT    MAGIC_COOL_IMPEDANCE_RMS//2   // 默认通过Vpp，Ipp计算
 
 // 相位检测方式： 1. FFT求相位差，2. 点积求相位差，3. 过零比较器求相位差，4. 其他
 #define MAGIC_COOL_PHASE_FFT            0   // FFT求相位差
@@ -59,10 +59,13 @@
 #define MAGIC_COOL_DC_CURRENT_LOW       1   // 低端电流
 #define MAGIC_COOL_DC_CURRENT_HIGH      2   // 高端电流
 #define MAGIC_COOL_DC_CURRENT_ALL       3   // 全部
-#define MAGIC_COOL_DC_CURRENT_DEFAULT   MAGIC_COOL_DC_CURRENT_LOW   // 默认低端电流
+#define MAGIC_COOL_DC_CURRENT_DEFAULT   MAGIC_COOL_DC_CURRENT_LOW//MAGIC_COOL_DC_CURRENT_HIGH//   // 默认低端电流
 
 // 阻抗追频时，差值小于阈值时不变，大于阈值时改变
 #define IMPEDANCE_THRESHOLD             0.01
+
+
+ #define  _NO_FILTER_PEAK 0
 
 // 相位追频方式的优缺点
 // 1. FFT求相位差：

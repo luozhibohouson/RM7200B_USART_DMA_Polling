@@ -1,0 +1,246 @@
+digraph track_check_power_stability_with_code {
+    // 全局属性设置
+    rankdir=TB;
+    node [shape=box, style=filled, fontname="Microsoft YaHei", fontsize=11];
+    edge [fontname="Microsoft YaHei", fontsize=10];
+    
+    // 开始节点
+    Start [label="开始\ntrack_check_power_stability(uint8_t n)", shape=ellipse, fillcolor=lightgreen];
+    
+    // 初始化节点 - 嵌入代码
+    Init [label=<
+<table border="0" cellborder="0" cellspacing="0">
+<tr><td align="left"><font face="Microsoft YaHei" point-size="11"><b>初始化变量</b></font></td></tr>
+<tr><td align="left"><font face="Courier New" point-size="9">
+adc_sample_t sample = {0};<br/>
+uint32_t pwrx = 0;
+</font></td></tr>
+</table>
+>, fillcolor=lightblue];
+    
+    // 循环开始
+    LoopStart [label="for (int i = 0; i &lt; n; i++)", shape=parallelogram, fillcolor=lightyellow];
+    
+    // 延时 - 嵌入代码
+    Delay [label=<
+<table border="0" cellborder="0" cellspacing="0">
+<tr><td align="left"><font face="Microsoft YaHei" point-size="11">延时 10ms</font></td></tr>
+<tr><td align="left"><font face="Courier New" point-size="9">
+DELAY_MS_OR_RETURN(10, false);
+</font></td></tr>
+</table>
+>, fillcolor=lightblue];
+    
+    // 采集电流 - 嵌入代码
+    CalcCurrent [label=<
+<table border="0" cellborder="0" cellspacing="0">
+<tr><td align="left"><font face="Microsoft YaHei" point-size="11">采集ADC样本</font></td></tr>
+<tr><td align="left"><font face="Courier New" point-size="9">
+sample = magic_cool_calc_current(ENABLE);
+</font></td></tr>
+</table>
+>, fillcolor=lightblue];
+    
+    // 计算功率 - 嵌入代码
+    CalcPower [label=<
+<table border="0" cellborder="0" cellspacing="0">
+<tr><td align="left"><font face="Microsoft YaHei" point-size="11">累加功率值</font></td></tr>
+<tr><td align="left"><font face="Courier New" point-size="9">
+pwrx += calculate_power(sample);
+</font></td></tr>
+</table>
+>, fillcolor=lightblue];
+    
+    LoopEnd [label="i++", shape=parallelogram, fillcolor=lightyellow];
+    
+    // 平均功率 - 嵌入代码
+    AvgPower [label=<
+<table border="0" cellborder="0" cellspacing="0">
+<tr><td align="left"><font face="Microsoft YaHei" point-size="11">计算平均功率</font></td></tr>
+<tr><td align="left"><font face="Courier New" point-size="9">
+pwrx /= n;
+</font></td></tr>
+</table>
+>, fillcolor=lightblue];
+    
+    // 打印调试信息 - 嵌入实际代码
+    PrintInfo [label=<
+<table border="0" cellborder="0" cellspacing="0">
+<tr><td align="left"><font face="Microsoft YaHei" point-size="11">打印调试信息</font></td></tr>
+<tr><td align="left"><font face="Courier New" point-size="8">
+printf("freq:%d, hvol: %d<br/>
+       hcur: %d power:%.2fW<br/>
+       pwr:%d\\r\\n",<br/>
+       pwm_get_freq(),<br/>
+       sample.voltage,<br/>
+       sample.current,<br/>
+       POWER_CAL(...), pwrx);
+</font></td></tr>
+</table>
+>, fillcolor=lightcyan];
+    
+    // 计算差值 - 嵌入代码
+    CalcDiff [label=<
+<table border="0" cellborder="0" cellspacing="0">
+<tr><td align="left"><font face="Microsoft YaHei" point-size="11">计算功率差值</font></td></tr>
+<tr><td align="left"><font face="Courier New" point-size="9">
+uint32_t diff = abs_i(<br/>
+&nbsp;&nbsp;magic_cool_pwr_max - pwrx);
+</font></td></tr>
+</table>
+>, fillcolor=lightblue];
+    
+    // 稳定性判断 - 包含条件编译
+    CheckStable [label=<
+<table border="0" cellborder="0" cellspacing="0">
+<tr><td align="left"><font face="Microsoft YaHei" point-size="11"><b>判断功率稳定性</b></font></td></tr>
+<tr><td align="left"><font face="Courier New" point-size="8">
+#if ENABLE_PER<br/>
+&nbsp;&nbsp;percent = diff*100/magic_cool_pwr_max;<br/>
+&nbsp;&nbsp;is_stable = (percent &lt; pwr_proxth);<br/>
+#else<br/>
+&nbsp;&nbsp;is_stable = (diff &lt; pwr_proxth);<br/>
+#endif
+</font></td></tr>
+</table>
+>, shape=diamond, fillcolor=yellow];
+    
+    // 判断功率是否恢复正常
+    CheckNormal [label=<
+<table border="0" cellborder="0" cellspacing="0">
+<tr><td align="left"><font face="Microsoft YaHei" point-size="11">功率是否恢复正常?</font></td></tr>
+<tr><td align="left"><font face="Courier New" point-size="9">
+is_pwr_back_to_normal =<br/>
+&nbsp;&nbsp;(pwrx &gt;= normal_pwr_max * 97/100)
+</font></td></tr>
+</table>
+>, shape=diamond, fillcolor=yellow];
+    
+    IsHugeAndNormal [label="处于大幅扫描模式\n且功率恢复正常?", shape=diamond, fillcolor=yellow];
+    
+    IncrementResetCnt [label=<
+<table border="0" cellborder="0" cellspacing="0">
+<tr><td align="left"><font face="Microsoft YaHei" point-size="11">递增重置计数器</font></td></tr>
+<tr><td align="left"><font face="Courier New" point-size="9">
+++pwr_proxth_reset_cnt;
+</font></td></tr>
+</table>
+>, fillcolor=lightblue];
+    
+    CheckResetCnt [label="pwr_proxth_reset_cnt &gt;= 10?", shape=diamond, fillcolor=yellow];
+    
+    ResetToNormal [label=<
+<table border="0" cellborder="0" cellspacing="0">
+<tr><td align="left"><font face="Microsoft YaHei" point-size="11"><b>恢复普通扫描参数</b></font></td></tr>
+<tr><td align="left"><font face="Courier New" point-size="8">
+freq_step = FREQ_NORMAL_STEP;<br/>
+freq_range = FREQ_NORMAL_RANGE;<br/>
+pwr_proxth = PWR_PROXTH;<br/>
+is_huge_stability_scan = false;<br/>
+perturb_step = 20;<br/>
+perturb_cnt = 3;
+</font></td></tr>
+</table>
+>, fillcolor=orange];
+    
+    IsStable [label="功率稳定?\nis_stable == true", shape=diamond, fillcolor=yellow];
+    
+    ResetDiffCnt [label=<
+<table border="0" cellborder="0" cellspacing="0">
+<tr><td align="left"><font face="Microsoft YaHei" point-size="11">重置计数器</font></td></tr>
+<tr><td align="left"><font face="Courier New" point-size="9">
+pwr_diff_cnt = 0;<br/>
+pwr_high_diff_cnt = 0;
+</font></td></tr>
+</table>
+>, fillcolor=lightblue];
+    
+    ReturnTrue1 [label="返回 true\n(跳过P&amp;O调整)", shape=ellipse, fillcolor=lightgreen];
+    
+    IncrDiffCnt [label="pwr_diff_cnt++", fillcolor=lightblue];
+    
+    CheckHugeStability [label=<
+<table border="0" cellborder="0" cellspacing="0">
+<tr><td align="left"><font face="Microsoft YaHei" point-size="11">判断大幅稳定性</font></td></tr>
+<tr><td align="left"><font face="Courier New" point-size="8">
+#if ENABLE_PER<br/>
+&nbsp;&nbsp;huge_stability = <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;(percent &gt;= PWR_PROXTH_MAX);<br/>
+#else<br/>
+&nbsp;&nbsp;huge_stability = <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;(diff &gt;= PWR_PROXTH_MAX);<br/>
+#endif
+</font></td></tr>
+</table>
+>, shape=diamond, fillcolor=yellow];
+    
+    CheckHugeScan [label="触发大幅扫描?\nhuge_stability &amp;&amp;\n!is_huge_stability_scan", shape=diamond, fillcolor=yellow];
+    
+    IncrHighDiffCnt [label="pwr_high_diff_cnt++", fillcolor=lightblue];
+    
+    CheckHighCnt [label="pwr_high_diff_cnt &gt;= 2?", shape=diamond, fillcolor=yellow];
+    
+    SetHugeMode [label=<
+<table border="0" cellborder="0" cellspacing="0">
+<tr><td align="left"><font face="Microsoft YaHei" point-size="11"><b>设置为大幅扫描模式</b></font></td></tr>
+<tr><td align="left"><font face="Courier New" point-size="8">
+freq_step = FREQ_HIGH_TEMP_STEP;<br/>
+freq_range = FREQ_HIGH_TEMP_RANGE;<br/>
+pwr_proxth = PWR_PROXTH_MIN;<br/>
+is_huge_stability_scan = true;<br/>
+perturb_step = 50;<br/>
+perturb_cnt = 0;<br/>
+normal_pwr_max = magic_cool_pwr_max;
+</font></td></tr>
+</table>
+>, fillcolor=orange];
+    
+    CheckPerturbCnt [label="pwr_diff_cnt &gt;= perturb_cnt?", shape=diamond, fillcolor=yellow];
+    
+    ReturnFalse [label="返回 false\n(进入P&amp;O调整)", shape=ellipse, fillcolor=red];
+    ReturnTrue2 [label="返回 true\n(跳过P&amp;O)", shape=ellipse, fillcolor=lightgreen];
+    
+    // 连接关系
+    Start -> Init;
+    Init -> LoopStart;
+    LoopStart -> Delay [label="i &lt; n"];
+    Delay -> CalcCurrent;
+    CalcCurrent -> CalcPower;
+    CalcPower -> LoopEnd;
+    LoopEnd -> LoopStart [label="继续循环"];
+    LoopStart -> AvgPower [label="i &gt;= n"];
+    AvgPower -> PrintInfo;
+    PrintInfo -> CalcDiff;
+    CalcDiff -> CheckStable;
+    CheckStable -> CheckNormal [label="计算完成"];
+    CheckNormal -> IsHugeAndNormal;
+    
+    IsHugeAndNormal -> IncrementResetCnt [label="是"];
+    IsHugeAndNormal -> IsStable [label="否"];
+    
+    IncrementResetCnt -> CheckResetCnt;
+    CheckResetCnt -> ResetToNormal [label="是"];
+    CheckResetCnt -> IsStable [label="否"];
+    
+    ResetToNormal -> IsStable;
+    
+    IsStable -> ResetDiffCnt [label="是"];
+    IsStable -> IncrDiffCnt [label="否"];
+    
+    ResetDiffCnt -> ReturnTrue1;
+    
+    IncrDiffCnt -> CheckHugeStability;
+    CheckHugeStability -> CheckHugeScan;
+    
+    CheckHugeScan -> IncrHighDiffCnt [label="是"];
+    CheckHugeScan -> CheckPerturbCnt [label="否"];
+    
+    IncrHighDiffCnt -> CheckHighCnt;
+    CheckHighCnt -> SetHugeMode [label="是"];
+    CheckHighCnt -> CheckPerturbCnt [label="否"];
+    
+    SetHugeMode -> ReturnFalse;
+    
+    CheckPerturbCnt -> ReturnFalse [label="是"];
+    CheckPerturbCnt -> ReturnTrue2 [label="否"];
+}

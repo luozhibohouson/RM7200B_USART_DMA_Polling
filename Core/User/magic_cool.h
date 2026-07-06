@@ -18,5 +18,17 @@ void magic_cool_run(void);
 void magic_cool_set_target_vol(uint32_t vol);
 void magic_cool_config_freq(uint32_t opt);
 void magic_cool_set_mode(uint32_t mode);
+void find_resonant_freq(void);
+extern void test_pwm_power(void);
+extern uint8_t gPowerTestMode; // 电流测试模式，0=低电流，1=高电流
+extern uint32_t gScanFreqMax;
+extern uint32_t gScanFreqMin;
+extern uint32_t magic_cool_pwr_max_scanresult;
+extern uint32_t magic_cool_runfreq;
 
+
+enum {
+    DC_CURRENT_LOW = 0,
+    DC_CURRENT_HIGH = 1,
+};
 #endif  // __MAGIC_COOL_H__

@@ -191,14 +191,18 @@ void TIM1_Configure(void)
 #endif
 }
 
+/*控制7011*/
 void pwm_enable(uint32_t enable)
 {
-    if (enable) {
-        TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);
+    if (enable) 
+    {
+        TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);//pb4
     #if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
-        TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Enable);
+        TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Enable);//pb3
     #endif
-    } else {
+    } 
+    else 
+    {
         TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Disable);
     #if PWM_DRIVER_METHOD == PWM_DIFFERENTIAL_DRIVE
         TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Disable);

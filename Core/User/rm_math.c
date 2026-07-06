@@ -570,25 +570,32 @@ int find_extremum_minima(float *val, uint32_t len, int *val_minima, int *minima_
     return 0;
 }
 
+
+#if 0
 int find_extremum_minima_i(uint32_t *val, uint32_t len, uint32_t *val_minima, int *minima_idx)
 {
     int best_idx = -1;
     uint32_t best_value = 0;
 
-    if (val == NULL || len < 3) {
+    if (val == NULL || len < 3) 
+    {
         return -1;
     }
 
     // 寻找所有V型谷底数据且值最小的谷底
-    for (size_t i = 1; i < len - 1; i++) {
-        if (val[i-1] > val[i] && val[i] <= val[i+1]) {
+    for (size_t i = 1; i < len - 1; i++) 
+    {
+        if (val[i-1] > val[i] && val[i] <= val[i+1]) 
+        {
             if (best_idx == -1 || val[i] < best_value) {
                 best_idx = i;
                 best_value = val[i];
             }
         }
     }
-    if (best_idx != -1) {
+    
+    if (best_idx != -1) 
+    {
         printf("1->  idx=%d value=%d\r\n", best_idx, best_value);
         *val_minima = best_value;
         *minima_idx = best_idx;
@@ -640,6 +647,7 @@ int find_extremum_minima_i(uint32_t *val, uint32_t len, uint32_t *val_minima, in
     return 0;
 }
 
+#endif
 /*  查找全局最大值:
  *  遍历整个浮点数数组，找出最大值及其索引。
  */
@@ -736,10 +744,6 @@ int find_minima_i(uint32_t *val, uint32_t len, uint32_t *val_minima, int *minima
     return 0;
 }
 
-void rm_math_test(void)
-{
-    ;
-}
 
 /* 3点中值滤波 (带阈值):
  * y[i] = Median(x[i-1], x[i], x[i+1])

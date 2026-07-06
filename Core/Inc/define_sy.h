@@ -6,11 +6,11 @@
 #if Magic_Cool_Customer == SongYang
 
 // =================== 电压设定 ===================
-#define     VOL_TARGET      40 // 50 //40  // 流量目标
-#define     VOL_TARGET_90P  34 // 45 //34
-#define     VOL_TARGET_80P  28 // 40 //28
-// #define     VOL_TARGET_70P  31 // 43 //31
-// #define     VOL_TARGET_60P  28 // 40 //28
+#define     VOL_TARGET      40 // 40 // 60 // 50 //40  // 流量目标
+#define     VOL_TARGET_90P  34 // 34 // 50 // 45 //34
+#define     VOL_TARGET_80P  28 // 28 // 40 // 40 //28
+// #define     VOL_TARGET_70P  35 // 23 // 43 //31
+// #define     VOL_TARGET_60P  30 // 40 //28
 // #define     VOL_TARGET_50P  25 // 37 //25
 
 // 最大电压，超过停止输出

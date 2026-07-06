@@ -54,6 +54,7 @@
 #define FLOW_LEVEL_100_PERCENT      0x06 //100%流量
 #define FLOW_QUERY_CMD              0xFF // 查询指令
 
+#define UART_DEBUG 1
 
 /* 指令定义 */
 typedef enum {
@@ -122,6 +123,8 @@ uint8_t usart_send_frame(uint8_t cmd, uint8_t *data, uint8_t data_len);
 void usart_handle_protocol_command(uint8_t *frame_data, uint16_t frame_len);
 void uart_cmd_process(void);
 void usart_transmit(uint8_t *buf, uint32_t len);
+extern void ProcessDebugUartData(void);
+extern uint8_t  DebugMode;
 
 /* 故障处理函数声明 */
 void fault_report_active(protocol_fault_t fault_code);
