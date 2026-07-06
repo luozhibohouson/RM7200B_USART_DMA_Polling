@@ -139,10 +139,10 @@ uint32_t magic_cool_pwr_max_scanresult = 0;
 uint32_t mode2_tick = 0;
 
 uint8_t gPowerTestMode = DC_CURRENT_LOW; // 默认低端电流  
-#if 0
+#if 1
 uint32_t gScanFreqMin = 30000;
 uint32_t gScanFreqMax = 34000;
-#elif 1
+#elif 0
 uint32_t gScanFreqMin = 32800;
 uint32_t gScanFreqMax = 36400;//36800;
 #elif 0
