@@ -5,5 +5,8 @@ void NMI_Handler(void)
   /* Go to infinite loop when NMI exception occurs */
   while (1)
   {
+     int x =5;
+     x++;
+
   }
 }
