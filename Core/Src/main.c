@@ -99,6 +99,7 @@ void app_upgrade_success(void)
 #endif
 }
 
+int a=5;
 
 void EXTI_Configure(void)
 {
