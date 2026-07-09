@@ -1099,6 +1099,82 @@ void ParsePWMFreqString(void)
 
 }
 
+/**
+ * @brief 解析 PWMADD-XXXHZ 或 PWMSUB-XXXHZ 字符串，提取后面三位数字
+ *        格式必须严格为: 前缀(7) + 三位数字(3) + HZ(2) = 12字符
+ * @param is_add 输出参数：true=PWMADD, false=PWMSUB
+ * @param value  输出参数：解析出的数字（000-999）
+ * @return true=解析成功, false=解析失败
+ */
+bool ParsePWMAddSubString(bool *is_add, uint16_t *value)
+{
+    // 参数有效性检查
+    if (is_add == NULL || value == NULL)
+        return false;
+
+    // 长度必须恰好为12: PWMADD-XXXHZ 或 PWMSUB-XXXHZ
+    // DMA缓冲区末尾可能有多余的 \0、\r、\n，全部剥离后有效长度必须是12
+    uint32_t valid_len = uart_rx_len;
+    while (valid_len > 0 && (uart_rxbuffer[valid_len - 1] == '\0' ||
+                              uart_rxbuffer[valid_len - 1] == '\r' ||
+                              uart_rxbuffer[valid_len - 1] == '\n'))
+    {
+        valid_len--;
+    }
+
+    if (valid_len != 12)
+    {
+        printf("Error: Invalid length %lu (raw=%lu), expected 12\r\n", valid_len, uart_rx_len);
+        return false;
+    }
+
+    // 判断是 PWMADD- 还是 PWMSUB-
+    if (strncmp((char *)uart_rxbuffer, "PWMADD-", 7) == 0)
+    {
+        *is_add = true;
+    }
+    else if (strncmp((char *)uart_rxbuffer, "PWMSUB-", 7) == 0)
+    {
+        *is_add = false;
+    }
+    else
+    {
+        printf("Error: Invalid prefix, expected PWMADD- or PWMSUB-\r\n");
+        return false;
+    }
+
+    // 提取后面的三位数字（位置7、8、9）
+    char num_str[4] = {0};
+    for (int i = 0; i < 3; i++)
+    {
+        if (uart_rxbuffer[7 + i] < '0' || uart_rxbuffer[7 + i] > '9')
+        {
+            printf("Error: Invalid digit at position %d: '%c'\r\n", 7 + i, uart_rxbuffer[7 + i]);
+            return false;
+        }
+        num_str[i] = uart_rxbuffer[7 + i];
+    }
+
+    // 检查必须以 HZ 结尾（位置10、11）
+    if (uart_rxbuffer[10] != 'H' || uart_rxbuffer[11] != 'Z')
+    {
+        printf("Error: Must end with 'HZ', got '%c%c'\r\n", uart_rxbuffer[10], uart_rxbuffer[11]);
+        return false;
+    }
+
+    *value = (uint16_t)atoi(num_str);
+
+    // 范围校验：000-999
+    if (*value > 999)
+    {
+        printf("Error: Value %u out of range (000-999)\r\n", *value);
+        return false;
+    }
+
+    printf("Parsed %s: value=%u\r\n", *is_add ? "PWMADD" : "PWMSUB", *value);
+    return true;
+}
+
 void ParseScanFreqString(void)
 {
     uint8_t flag = 0;
@@ -1279,6 +1355,35 @@ void ProcessDebugUartData(void)
            
             printf("Scan Result: RunFreq=%lu Hz, magic_cool_pwr_max=%lu, Power=%.3f mW\r\n", magic_cool_runfreq, magic_cool_pwr_max_scanresult, POWER_AMP(magic_cool_pwr_max_scanresult));
 
+        }
+        else if(strncmp((char *)uart_rxbuffer, "PWMADD-", 7) == 0 || strncmp((char *)uart_rxbuffer, "PWMSUB-", 7) == 0)
+        {
+            bool is_add = false;
+            uint16_t value = 0;
+
+            if (ParsePWMAddSubString(&is_add, &value))
+            {
+                if (is_add)
+                {
+                    // TODO: 在此处添加 PWMADD 的业务逻辑
+                    int freq1 = pwm_get_freq();
+                    int freq2 = freq1 + value;
+
+                    pwm_set_freq(freq2);
+                    printf("PWM frequency increased to %d Hz\r\n", freq2);
+
+                }
+                else
+                {
+                    // TODO: 在此处添加 PWMSUB 的业务逻辑
+                    int freq1 = pwm_get_freq();
+                    int freq2 = freq1 - value;
+
+                    pwm_set_freq(freq2);
+                    printf("PWM frequency decreased to %d Hz\r\n", freq2);
+
+                }
+            }
         }
         else
         {
