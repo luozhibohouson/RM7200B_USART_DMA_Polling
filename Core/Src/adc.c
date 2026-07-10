@@ -31,7 +31,7 @@ float adc_vocurp_avg = 0.0;   // VOCurP 电流检测平均值（高端总电流�
 
 bool firstPowerOn = true;
 bool DefineDebugCurrentWave =false;
-bool DefineDebugCurrentException =false;
+bool DefineDebugCurrentException =true;//false;
 
 
 // #if MAGIC_COOL_DC_CURRENT_DEFAULT == MAGIC_COOL_DC_CURRENT_HIGH
